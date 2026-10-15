@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Properties & units — RTC Rentals</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M7 15.5 16 8l9 7.5M9.5 13.5V24h13V13.5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="content">
+  <div class="page">
+    <div class="page-head">
+      <div><h1>Properties & units</h1><p>Every property you rent out, and each unit or room in it.</p></div>
+      <button class="btn" id="add-property" type="button"></button>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search properties or units" aria-label="Search properties or units">
+      <select id="status-filter" aria-label="Filter by unit status">
+        <option value="">All units</option>
+        <option value="occupied">Occupied</option>
+        <option value="vacant">Vacant</option>
+        <option value="notice">On notice</option>
+        <option value="maintenance">Maintenance</option>
+      </select>
+      <div class="plan-usage" id="plan-usage"></div>
+    </div>
+    <div id="list"><p class="muted">Loading…</p></div>
+  </div>
+</div>
+<script type="module" src="js/properties.js"></script>
+</body>
+</html>

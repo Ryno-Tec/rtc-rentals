@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RTC Rentals — Sign in</title>
+  <meta name="description" content="Property management for South African landlords who manage their own rentals.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M7 15.5 16 8l9 7.5M9.5 13.5V24h13V13.5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="auth">
+  <section class="auth-side">
+    <div id="brand"></div>
+    <h1>Manage your rentals without paying agent fees.</h1>
+    <p>Properties, tenants, leases and rent in one place, built for how South African landlords actually work.</p>
+    <ul id="points"></ul>
+    <div class="foot">RTC Rentals is a product of Ryno-Tec Consulting (Pty) Ltd · Reg. 2026/818634/07</div>
+  </section>
+
+  <main class="auth-main">
+    <div class="auth-box">
+      <h2 id="title">Welcome back</h2>
+      <p class="muted" id="subtitle" style="margin:0">Sign in to your landlord account.</p>
+
+      <div class="notice hidden" id="not-connected" style="margin-top:20px">
+        This site isn’t connected to its database yet, so accounts are switched off. You can explore everything with sample data.
+      </div>
+
+      <div id="auth-forms">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-tab="signin">Sign in</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="signup">Create account</button>
+        </div>
+
+        <form id="form" novalidate>
+          <div class="form-error hidden" role="alert" id="error"></div>
+          <div class="notice hidden" role="status" id="info"></div>
+          <div class="field hidden" id="name-field">
+            <label for="name">Full name</label>
+            <input id="name" name="name" autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8">
+            <div class="hint hidden" id="pw-hint">At least 8 characters.</div>
+          </div>
+          <button class="btn" type="submit" id="submit">Sign in</button>
+          <p style="text-align:center;margin:12px 0 0"><button type="button" class="btn-link" id="forgot">Forgot password?</button></p>
+        </form>
+        <div class="divider">or</div>
+      </div>
+
+      <button class="btn btn-ghost" type="button" id="demo">Explore the demo</button>
+      <p class="muted" style="font-size:12px;margin-top:16px">By creating an account you agree that we process your details under POPIA to run the service.</p>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { api, configured, isDemo, enterDemo, leaveDemo } from './js/data.js';
+  import { brand, icon } from './js/shell.js';
+
+  document.getElementById('brand').innerHTML = brand('by Ryno-Tec');
+  document.getElementById('points').innerHTML = [
+    'Every property and unit with its rent, status and plan limits',
+    'Tenant onboarding, leases and e-signing coming next',
+    'Rent collection through Ozow, with automatic receipts',
+  ].map(t => `<li>${icon.check}<span>${t}</span></li>`).join('');
+
+  const $ = id => document.getElementById(id);
+
+  document.getElementById('demo').addEventListener('click', () => { enterDemo(); location.href = 'dashboard.html'; });
+
+  if (!configured) {
+    $('not-connected').classList.remove('hidden');
+    $('auth-forms').classList.add('hidden');
+    $('title').textContent = 'RTC Rentals';
+    $('subtitle').textContent = 'Preview build';
+    $('demo').className = 'btn';
+  } else if (isDemo()) {
+    leaveDemo(); location.reload();          // reload so the live backend is used
+  } else if (location.hash.includes('type=recovery')) {
+    // Arrived from a password-reset email: Supabase has signed them in; ask for the new password.
+    const pw = prompt('Choose a new password (at least 8 characters):');
+    if (pw && pw.length >= 8) {
+      try { await api.updatePassword(pw); location.replace('dashboard.html'); }
+      catch (ex) { alert(ex.message); }
+    }
+  } else if (await api.session()) {
+    location.replace('dashboard.html');
+  }
+
+  let mode = 'signin';
+  const setMode = m => {
+    mode = m;
+    document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === m)));
+    $('name-field').classList.toggle('hidden', m !== 'signup');
+    $('pw-hint').classList.toggle('hidden', m !== 'signup');
+    $('password').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
+    $('submit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
+    $('title').textContent = m === 'signup' ? 'Start your free 30-day trial' : 'Welcome back';
+    $('subtitle').textContent = m === 'signup' ? 'No card needed. Starter plan is R149/month after the trial.' : 'Sign in to your landlord account.';
+    $('error').classList.add('hidden'); $('info').classList.add('hidden');
+  };
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.tab)));
+
+  const showError = m => { $('error').textContent = m; $('error').classList.remove('hidden'); };
+  const showInfo = m => { $('info').textContent = m; $('info').classList.remove('hidden'); };
+
+  $('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('error').classList.add('hidden'); $('info').classList.add('hidden');
+    const email = $('email').value.trim(), password = $('password').value, name = $('name').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return showError('Enter a valid email address.');
+    if (password.length < 8) return showError('Password must be at least 8 characters.');
+    if (mode === 'signup' && !name) return showError('Enter your full name.');
+    $('submit').disabled = true;
+    try {
+      if (mode === 'signin') { await api.signIn(email, password); location.replace('dashboard.html'); }
+      else {
+        const { needsConfirmation } = await api.signUp(email, password, name);
+        if (needsConfirmation) { showInfo(`Check ${email} for a link to confirm your account.`); setTimeout(() => $('submit').disabled = false, 0); }
+        else location.replace('dashboard.html');
+      }
+    } catch (ex) { showError(ex.message); }
+    finally { $('submit').disabled = false; }
+  });
+
+  $('forgot').addEventListener('click', async () => {
+    const email = $('email').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return showError('Enter your email above first, then tap “Forgot password?”.');
+    try { await api.resetPassword(email); showInfo(`If ${email} has an account, a reset link is on its way.`); }
+    catch (ex) { showError(ex.message); }
+  });
+</script>
+</body>
+</html>

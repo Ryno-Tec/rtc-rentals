@@ -1,0 +1,4 @@
+tests/ui/screenshots/
+__pycache__/
+.DS_Store
+supabase/.temp/
