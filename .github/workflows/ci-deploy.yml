@@ -11,15 +11,19 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Database schema tests (Postgres 16)
+      - name: Database schema tests (Postgres)
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-16 >/dev/null
-          sudo -u postgres env PATH=/usr/lib/postgresql/16/bin:$PATH bash -c 'cp -r "$GITHUB_WORKSPACE" /tmp/repo && /tmp/repo/tests/db/run.sh'
+          # The runner image ships PostgreSQL binaries; install them only if missing.
+          if ! ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql >/dev/null
+          fi
+          export PATH="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1):$PATH"
+          postgres --version
+          bash tests/db/run.sh
 
       - uses: actions/setup-python@v5
         with:
@@ -41,7 +45,7 @@ jobs:
   deploy:
     needs: test
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production
     steps:
       - uses: actions/checkout@v4
