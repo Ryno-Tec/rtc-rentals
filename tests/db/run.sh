@@ -14,5 +14,6 @@ trap '"$PGBIN/pg_ctl" -D "$DATA" -m immediate stop >/dev/null 2>&1 || true; rm -
 PSQL=("$PGBIN/psql" -h "$DATA" -p "$PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -q)
 
 "${PSQL[@]}" -f "$ROOT/tests/db/supabase_shim.sql"
-"${PSQL[@]}" -f "$ROOT/supabase/migrations/001_initial_schema.sql"
+for m in "$ROOT"/supabase/migrations/*.sql; do "${PSQL[@]}" -f "$m"; done
 "${PSQL[@]}" -f "$ROOT/tests/db/test_schema.sql"
+"${PSQL[@]}" -f "$ROOT/tests/db/test_tenant.sql"

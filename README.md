@@ -14,7 +14,8 @@ A product of **Ryno-Tec Consulting (Pty) Ltd** (Reg. 2026/818634/07).
 | Properties: add, edit, delete, with SA provinces and 4-digit postal codes | Done |
 | Units: add, edit, delete, quick status change, search and filter | Done |
 | Demo mode with sample SA data, no backend needed | Done |
-| Tenants, leases and e-signing, rent collection, maintenance | Phase 1, next |
+| Tenant app: rent due and pay button, payment history and receipts, repair requests with progress, messages, lease and home details | Done in demo; goes live once tenant invites and Ozow are connected |
+| Tenant invites, leases and e-signing, live Ozow payments | Phase 1, next |
 
 Database tables for tenants, leases, payments, maintenance, inspections, documents and messages already exist, so Phase 1 is mostly screens and integrations.
 
@@ -25,6 +26,7 @@ web/                     Static site (plain HTML, CSS, JavaScript modules; no bu
   index.html             Sign in / create account / demo
   dashboard.html         Portfolio overview
   properties.html        Properties and units
+  tenant.html            Tenant app (Home, Rent, Repairs, Messages)
   js/config.js           Supabase URL and public key (empty = demo mode)
   js/data.js             Data layer: Supabase or in-browser demo, same rules
   js/shell.js            Sidebar, modal, toasts, formatting
@@ -33,6 +35,8 @@ tests/db/                Schema tests on a throwaway Postgres
 tests/ui/                Browser test of the whole demo flow
 .github/workflows/       Test on every push; deploy main to Azure Static Web Apps
 ```
+
+**Tenant access.** Tenants sign in with their own account (created from an invite, marked `role: tenant`, so they never get a landlord account). Database rules let them see only their own lease, unit, landlord contact, payments, repairs and messages. They can log repairs and send messages but can't change status, cost or anything the landlord set.
 
 **Security model.** Every table has row-level security. A landlord's browser can only read or change that landlord's rows, and units can only attach to the same landlord's properties (enforced by a composite foreign key). Plan limits and plan changes are enforced by database triggers, so they can't be bypassed from the browser. The Supabase anon key in `config.js` is designed to be public.
 
@@ -48,7 +52,7 @@ cd web && python3 -m http.server 8080
 ### 1. Supabase (database and sign-in)
 
 1. Create a project at supabase.com. Pick the region closest to South Africa.
-2. **SQL Editor** → paste `supabase/migrations/001_initial_schema.sql` → **Run**.
+2. **SQL Editor** → run each file in `supabase/migrations/` in order (`001…`, then `002…`).
 3. **Authentication → URL Configuration**: set **Site URL** to your live address (for example `https://rentals.ryno-tec.co.za`) and add it under **Redirect URLs**.
 4. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 
@@ -69,8 +73,8 @@ Static Web App → **Custom domains** → add `rentals.ryno-tec.co.za`, then cre
 ## Tests
 
 ```bash
-tests/db/run.sh                 # schema: isolation between landlords, plan limits, one active lease per unit
-python3 tests/ui/smoke_test.py  # browser: demo sign-in, dashboard maths, property and unit CRUD, mobile layout
+tests/db/run.sh                 # schema: isolation between landlords and tenants, plan limits, one active lease per unit
+python3 tests/ui/smoke_test.py  # browser: landlord and tenant demo flows, desktop and phone
 ```
 
 Both run automatically in GitHub Actions.

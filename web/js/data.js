@@ -6,7 +6,7 @@ import { config } from './config.js';
 export const configured = Boolean(config.supabaseUrl && config.supabaseAnonKey);
 
 const DEMO_FLAG = 'rtc-rentals-demo-mode';
-const DEMO_DATA = 'rtc-rentals-demo-data-v1';
+const DEMO_DATA = 'rtc-rentals-demo-data-v2';
 
 // Browser storage can be missing or throw (private windows, blocked cookies).
 const memory = new Map();
@@ -77,7 +77,7 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k 
 // Live backend (Supabase)
 // ============================================================================
 let clientPromise;
-function client() {
+export function client() {
   clientPromise ??= import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
     .then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
   return clientPromise;
@@ -88,7 +88,7 @@ const live = {
     const sb = await client();
     const { data } = await sb.auth.getSession();
     const u = data.session?.user;
-    return u ? { email: u.email, name: u.user_metadata?.full_name || '' } : null;
+    return u ? { email: u.email, name: u.user_metadata?.full_name || '', role: u.user_metadata?.role || 'landlord' } : null;
   },
   async signIn(email, password) {
     const sb = await client();
@@ -179,21 +179,72 @@ function seed() {
        status, prepaid_meter_number: null, water_included: false, electricity_included: false, notes: null,
        created_at: now, ...extra });
   const a = uid(), b = uid(), c = uid();
-  return {
-    profile: { full_name: 'Demo Landlord', email: 'demo@rtc-rentals.co.za', tier: 'growth' },
-    properties: [
-      p(a, 'Mabaso Street rooms', 'backyard_rooms', '12 Mabaso Street', 'Orlando East', 'Soweto', 'GP', '1804'),
-      p(b, 'Hatfield flat', 'flat', '1103 Hatfield Square, 1115 Burnett Street', 'Hatfield', 'Pretoria', 'GP', '0083'),
-      p(c, 'Wellington Road townhouses', 'townhouse', '14 Wellington Road', 'Durbanville', 'Cape Town', 'WC', '7550'),
-    ],
-    units: [
-      u(a, 'Room 1', 1, 1, 3200, 'occupied', { water_included: true }),
+  const units = [
+      u(a, 'Room 1', 1, 1, 3200, 'occupied', { water_included: true, prepaid_meter_number: '04211873320' }),
       u(a, 'Room 2', 1, 1, 3200, 'occupied', { water_included: true }),
       u(a, 'Room 3', 1, 1, 3500, 'vacant', { water_included: true }),
       u(a, 'Cottage', 2, 1, 5800, 'occupied', { prepaid_meter_number: '04212345678' }),
       u(b, 'Flat 1103', 2, 1, 7900, 'notice', { size_m2: 62 }),
       u(c, 'Unit A', 3, 2, 11500, 'occupied', { size_m2: 110 }),
       u(c, 'Unit B', 3, 2, 11500, 'maintenance', { size_m2: 110, notes: 'Geyser replacement booked' }),
+  ];
+  return {
+    ...tenantSeed(units[0], now),
+    profile: { full_name: 'Thabo Mabaso', email: 'thabo@example.co.za', phone: '082 555 0142', tier: 'growth' },
+    properties: [
+      p(a, 'Mabaso Street rooms', 'backyard_rooms', '12 Mabaso Street', 'Orlando East', 'Soweto', 'GP', '1804'),
+      p(b, 'Hatfield flat', 'flat', '1103 Hatfield Square, 1115 Burnett Street', 'Hatfield', 'Pretoria', 'GP', '0083'),
+      p(c, 'Wellington Road townhouses', 'townhouse', '14 Wellington Road', 'Durbanville', 'Cape Town', 'WC', '7550'),
+    ],
+    units,
+  };
+}
+
+// Sample tenant for the tenant portal demo: Lerato in Room 1, seven months into her lease,
+// with this month's rent still to pay (due on the 25th).
+function tenantSeed(unit, now) {
+  const today = new Date();
+  const ym = (y, m) => { const d = new Date(y, m, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; };
+  const at = (y, m, day, h = 9) => new Date(y, m, day, h).toISOString();
+  const Y = today.getFullYear(), M = today.getMonth();
+  const tenantId = uid(), leaseId = uid();
+  const start = new Date(Y, M - 7, 1);
+  const payments = [];
+  for (let k = 7; k >= 1; k--) {
+    const late = k === 4;
+    payments.push({
+      id: uid(), lease_id: leaseId, period_month: ym(Y, M - k), amount_due: 3200, amount_paid: 3200,
+      status: 'paid', method: k % 3 === 0 ? 'eft' : 'ozow',
+      provider_ref: `RTC-${ym(Y, M - k).slice(0, 7).replace('-', '')}-0417`,
+      paid_at: late ? at(Y, M - k + 1, 2, 14) : at(Y, M - k, 23 - (k % 3)), created_at: now,
+    });
+  }
+  payments.push({ id: uid(), lease_id: leaseId, period_month: ym(Y, M), amount_due: 3200, amount_paid: 0,
+    status: 'pending', method: null, provider_ref: null, paid_at: null, created_at: now });
+  const ago = d => new Date(Date.now() - d * 864e5).toISOString();
+  return {
+    tenants: [{ id: tenantId, full_name: 'Lerato Nkosi', email: 'lerato.n@example.co.za', phone: '071 482 9930',
+      employer: 'Bara Hospital', created_at: now }],
+    leases: [{ id: leaseId, unit_id: unit.id, tenant_id: tenantId, status: 'active',
+      start_date: ym(start.getFullYear(), start.getMonth()), end_date: ym(start.getFullYear() + 1, start.getMonth()),
+      monthly_rent: 3200, deposit: 3200, rent_due_day: 25, escalation_pct: 6, signed_at: ago(222), created_at: now }],
+    payments,
+    maintenance: [
+      { id: uid(), unit_id: unit.id, title: 'Window latch broken', category: 'Doors & windows',
+        description: 'The bedroom window won’t lock. It blows open at night when it’s windy.',
+        priority: 'medium', status: 'assigned', contractor: 'Sipho (handyman)', created_at: ago(3), updated_at: ago(1),
+        updates: [{ at: ago(1), text: 'Sipho will come on Saturday morning between 9 and 11.' }] },
+      { id: uid(), unit_id: unit.id, title: 'Kitchen tap leaking', category: 'Plumbing',
+        description: 'Tap drips constantly, even when closed tight.', priority: 'low', status: 'resolved',
+        contractor: 'Mabaso Plumbing', created_at: ago(48), updated_at: ago(44), resolved_at: ago(44),
+        updates: [{ at: ago(46), text: 'Plumber booked for Thursday.' }, { at: ago(44), text: 'Washer replaced. Let us know if it drips again.' }] },
+    ],
+    messages: [
+      { id: uid(), tenant_id: tenantId, sender: 'landlord', body: 'Welcome to Room 1, Lerato! Your prepaid meter number is on the Home tab. Shout if anything needs fixing.', created_at: ago(220) },
+      { id: uid(), tenant_id: tenantId, sender: 'tenant', body: 'Thank you! Quick one: is it fine if my sister stays over this weekend?', created_at: ago(30) },
+      { id: uid(), tenant_id: tenantId, sender: 'landlord', body: 'Of course, no problem. Just keep the gate locked at night please.', created_at: ago(30) },
+      { id: uid(), tenant_id: tenantId, sender: 'tenant', body: 'Hi, I logged the window latch. It’s the bedroom one.', created_at: ago(3) },
+      { id: uid(), tenant_id: tenantId, sender: 'landlord', body: 'Got it, I’ve asked Sipho to come on Saturday morning.', created_at: ago(1) },
     ],
   };
 }
@@ -220,7 +271,7 @@ function validateUnit(u) {
 }
 
 const demo = {
-  async session() { const s = load(); return { email: s.profile.email, name: s.profile.full_name }; },
+  async session() { const s = load(); return { email: s.profile.email, name: s.profile.full_name, role: 'landlord' }; },
   async signIn() {}, async signUp() { return { needsConfirmation: false }; },
   async resetPassword() {}, async updatePassword() {}, async signOut() {},
 
@@ -251,6 +302,9 @@ const demo = {
   },
   async deleteProperty(id) {
     const s = load();
+    const unitIds = s.units.filter(u => u.property_id === id).map(u => u.id);
+    if ((s.leases || []).some(l => unitIds.includes(l.unit_id)))
+      throw new DataError('A unit here has a lease linked to it, so the property can’t be deleted. End the lease first.');
     s.properties = s.properties.filter(p => p.id !== id);
     s.units = s.units.filter(u => u.property_id !== id);
     save(s); emit();
@@ -276,6 +330,8 @@ const demo = {
   },
   async deleteUnit(id) {
     const s = load();
+    if ((s.leases || []).some(l => l.unit_id === id))
+      throw new DataError('This unit has a lease linked to it, so it can’t be deleted. End the lease first.');
     s.units = s.units.filter(u => u.id !== id);
     save(s); emit();
   },
@@ -285,6 +341,9 @@ const demo = {
 
 export const api = isDemo() ? demo : live;
 export function resetDemo() { demo.reset(); }
+
+// Shared with the tenant portal so both sides of the demo use the same sample data.
+export const demoStore = { load, save, emit, uid, listeners };
 
 // Portfolio maths shared by the dashboard and properties pages.
 export function summarise(properties) {

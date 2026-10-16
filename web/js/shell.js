@@ -46,6 +46,7 @@ const SOON = [
 export async function mountShell(active) {
   const session = await api.session();
   if (!session) { location.replace('index.html'); return new Promise(() => {}); }
+  if (session.role === 'tenant') { location.replace('tenant.html'); return new Promise(() => {}); }
   const profile = await api.profile().catch(() => ({ full_name: session.name, email: session.email, limits: null }));
 
   const content = document.getElementById('content');
@@ -68,7 +69,8 @@ export async function mountShell(active) {
     <div class="main">
       <div class="topbar"><button id="navtoggle" aria-label="Open menu" aria-expanded="false">${icon.menu}</button>${brand('')}</div>
       ${isDemo() ? `<div class="demo-banner" role="status"><strong>Demo mode</strong>
-        <span>${configured ? 'Sample data, saved only in this browser.' : 'Sample data, saved only in this browser. Connect Supabase in js/config.js to go live.'}</span></div>` : ''}
+        <span>${configured ? 'Sample data, saved only in this browser.' : 'Sample data, saved only in this browser. Connect Supabase in js/config.js to go live.'}</span>
+        <a class="demo-switch" href="tenant.html">See what your tenant sees →</a></div>` : ''}
     </div>`;
   content.replaceWith(shell);
   shell.querySelector('.main').appendChild(content);
@@ -110,7 +112,7 @@ export function toast(message, kind = '') {
 
 // ---------- Modal ----------
 // openModal({ title, body (html), submitLabel, onSubmit(form) }) — onSubmit may throw to show an error.
-export function openModal({ title, body, submitLabel = 'Save', danger = false, onSubmit }) {
+export function openModal({ title, body, submitLabel = 'Save', danger = false, cancel = true, onSubmit }) {
   const prev = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
@@ -119,7 +121,7 @@ export function openModal({ title, body, submitLabel = 'Save', danger = false, o
       <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2>
         <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon.close}</button></div>
       <div class="modal-body"><div class="form-error hidden" role="alert"></div>${body}</div>
-      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <div class="modal-foot">${cancel ? '<button type="button" class="btn btn-ghost" data-close>Cancel</button>' : ''}
         <button type="submit" class="btn ${danger ? 'btn-danger' : ''}">${esc(submitLabel)}</button></div>
     </form>`;
   document.body.appendChild(wrap);

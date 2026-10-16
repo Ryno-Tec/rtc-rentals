@@ -119,6 +119,80 @@ with sync_playwright() as pw:
             overflow = page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
             assert not overflow, "page scrolls sideways on mobile"
         page.close()
+
+    # ---------------- Tenant portal ----------------
+    for name, viewport in [("desktop", {"width": 1280, "height": 860}), ("mobile", {"width": 390, "height": 844})]:
+        page = browser.new_page(viewport=viewport)
+        page.on("pageerror", lambda e: errors.append(f"tenant {name}: {e}"))
+        page.on("console", lambda m: m.type == "error" and errors.append(f"tenant {name} console: {m.text}"))
+        page.goto(f"{BASE}/index.html")
+        page.get_by_role("button", name="See the tenant view").click()
+        page.wait_for_url("**/tenant.html")
+        expect(page.get_by_role("heading", name="Hi Lerato")).to_be_visible()
+        rent = page.locator(".rent-card")
+        expect(rent).to_contain_text("R 3 200")
+        expect(page.get_by_text("04211873320")).to_be_visible()
+        page.screenshot(path=SHOTS / f"tenant-{name}-home.png", full_page=True)
+
+        if name == "desktop":
+            # Pay this month's rent
+            rent.get_by_role("button", name="Pay R 3 200 now").click()
+            expect(page.locator(".modal")).to_contain_text("Reference")
+            page.locator(".modal [type=submit]").click()
+            expect(page.locator(".modal")).to_contain_text("Rent receipt", timeout=8000)
+            page.screenshot(path=SHOTS / "tenant-desktop-receipt.png")
+            page.get_by_role("button", name="Done").click()
+            expect(rent).to_contain_text("Paid up")
+
+            # Rent history
+            page.get_by_role("link", name="Rent").click()
+            expect(page.locator(".t-table tbody tr")).to_have_count(8)
+            expect(page.locator(".t-table")).to_contain_text("Paid late")
+            expect(page.locator(".t-stats")).to_contain_text("7 of 8")
+            page.screenshot(path=SHOTS / "tenant-desktop-rent.png", full_page=True)
+
+            # Report a repair
+            page.get_by_role("link", name="Repairs").click()
+            expect(page.locator(".req")).to_have_count(2)
+            page.get_by_role("button", name="Report a problem").click()
+            page.locator(".modal [type=submit]").click()
+            expect(page.locator(".form-error")).to_contain_text("Say briefly")
+            page.get_by_label("What’s wrong?").fill("Geyser not heating")
+            page.get_by_label("Type").select_option("Plumbing")
+            page.get_by_label("How urgent?").select_option("urgent")
+            expect(page.locator("#r-emergency")).to_be_visible()
+            page.get_by_label("How urgent?").select_option("high")
+            page.get_by_label("Details").fill("Water is cold since this morning.")
+            page.locator(".modal [type=submit]").click()
+            first = page.locator(".req").first
+            expect(first).to_contain_text("Geyser not heating")
+            expect(first).to_contain_text("Logged")
+            expect(first).to_contain_text("I’ve seen this", timeout=6000)
+            page.screenshot(path=SHOTS / "tenant-desktop-repairs.png", full_page=True)
+
+            # Message the landlord
+            page.get_by_role("link", name="Messages").click()
+            page.get_by_placeholder("Write a message").fill("Thanks for sorting the latch!")
+            page.keyboard.press("Enter")
+            expect(page.locator(".bubble.me").last).to_contain_text("Thanks for sorting the latch!")
+            page.screenshot(path=SHOTS / "tenant-desktop-messages.png", full_page=True)
+
+            # Back to the landlord: the leased unit is protected
+            page.get_by_role("link", name="← Back to landlord view").click()
+            page.wait_for_url("**/dashboard.html")
+            page.get_by_role("link", name="Properties & units").click()
+            card = page.locator("article", has_text="Mabaso Street rooms")
+            card.get_by_role("button", name="Delete Room 1").click()
+            page.locator(".modal [type=submit]").click()
+            expect(page.locator(".toast.error")).to_contain_text("lease linked")
+        else:
+            expect(page.locator(".t-tabs")).to_be_in_viewport()
+            for tab in ["Rent", "Repairs", "Messages", "Home"]:
+                page.get_by_role("link", name=tab, exact=True).click()
+                expect(page.get_by_role("link", name=tab, exact=True)).to_have_attribute("aria-current", "page")
+                assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth"), f"tenant {tab} scrolls sideways"
+                page.screenshot(path=SHOTS / f"tenant-mobile-{tab.lower()}.png", full_page=False)
+        page.close()
     browser.close()
 
 server.shutdown()

@@ -56,6 +56,7 @@
       </div>
 
       <button class="btn btn-ghost" type="button" id="demo">Explore the demo</button>
+      <button class="btn btn-ghost" type="button" id="demo-tenant" style="margin-top:8px">See the tenant view</button>
       <p class="muted" style="font-size:12px;margin-top:16px">By creating an account you agree that we process your details under POPIA to run the service.</p>
     </div>
   </main>
@@ -68,13 +69,14 @@
   document.getElementById('brand').innerHTML = brand('by Ryno-Tec');
   document.getElementById('points').innerHTML = [
     'Every property and unit with its rent, status and plan limits',
-    'Tenant onboarding, leases and e-signing coming next',
+    'A tenant app for paying rent, logging repairs and messaging you',
     'Rent collection through Ozow, with automatic receipts',
   ].map(t => `<li>${icon.check}<span>${t}</span></li>`).join('');
 
   const $ = id => document.getElementById(id);
 
   document.getElementById('demo').addEventListener('click', () => { enterDemo(); location.href = 'dashboard.html'; });
+  document.getElementById('demo-tenant').addEventListener('click', () => { enterDemo(); location.href = 'tenant.html'; });
 
   if (!configured) {
     $('not-connected').classList.remove('hidden');
@@ -91,8 +93,9 @@
       try { await api.updatePassword(pw); location.replace('dashboard.html'); }
       catch (ex) { alert(ex.message); }
     }
-  } else if (await api.session()) {
-    location.replace('dashboard.html');
+  } else {
+    const s = await api.session();
+    if (s) location.replace(s.role === 'tenant' ? 'tenant.html' : 'dashboard.html');
   }
 
   let mode = 'signin';
@@ -121,7 +124,10 @@
     if (mode === 'signup' && !name) return showError('Enter your full name.');
     $('submit').disabled = true;
     try {
-      if (mode === 'signin') { await api.signIn(email, password); location.replace('dashboard.html'); }
+      if (mode === 'signin') {
+        await api.signIn(email, password);
+        location.replace((await api.session())?.role === 'tenant' ? 'tenant.html' : 'dashboard.html');
+      }
       else {
         const { needsConfirmation } = await api.signUp(email, password, name);
         if (needsConfirmation) { showInfo(`Check ${email} for a link to confirm your account.`); setTimeout(() => $('submit').disabled = false, 0); }
