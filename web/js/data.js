@@ -95,7 +95,9 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k 
 let clientPromise;
 export function client() {
   clientPromise ??= import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
-    .then(({ createClient }) => createClient(config.supabaseUrl, config.supabaseAnonKey));
+    .then(({ createClient }) => createClient(
+      // Tolerate the REST path or stray spaces the dashboard copy can include.
+      config.supabaseUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''), config.supabaseAnonKey.trim()));
   return clientPromise;
 }
 
