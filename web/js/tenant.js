@@ -49,7 +49,8 @@ const monthName = s => { const d = ymd(s); return `${MONTHS[d.getMonth()]} ${d.g
 const shortDate = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
 const longDay = d => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const dueDate = (p, lease) => { const d = ymd(p.period_month); return new Date(d.getFullYear(), d.getMonth(), lease.rent_due_day); };
+const lastDay = (y, m) => new Date(y, m + 1, 0).getDate();
+const dueDate = (p, lease) => { const d = ymd(p.period_month); return new Date(d.getFullYear(), d.getMonth(), Math.min(lease.rent_due_day, lastDay(d.getFullYear(), d.getMonth()))); };
 const daysUntil = d => Math.round((startOfDay(d) - startOfDay(new Date())) / 864e5);
 const when = iso => {
   const d = new Date(iso), days = -daysUntil(d);
@@ -111,7 +112,7 @@ function rentCard() {
       </section>`;
   }
   const last = payments[0];
-  const next = last ? new Date(ymd(last.period_month).getFullYear(), ymd(last.period_month).getMonth() + 1, lease.rent_due_day) : null;
+  const next = last ? (() => { const y = ymd(last.period_month).getFullYear(), m = ymd(last.period_month).getMonth() + 1; return new Date(y, m, Math.min(lease.rent_due_day, lastDay(y, m))); })() : null;
   return `
     <section class="card rent-card rent-ok" aria-labelledby="rent-h">
       <div class="rent-top"><h2 id="rent-h">Rent</h2><span class="pill pill-ok">${ico.check}Paid up</span></div>

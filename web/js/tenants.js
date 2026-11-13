@@ -1,6 +1,6 @@
 import { api, LEASE_STATUS } from './data.js';
 import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
-import { currentRent, nextEscalation, monthLabel, eftReference } from './ledger.js';
+import { currentRent, nextEscalation, monthLabel, eftReference, ordinal as ord } from './ledger.js';
 
 await mountShell('tenants.html');
 const list = document.getElementById('list');
@@ -8,7 +8,6 @@ document.getElementById('add-tenancy').innerHTML = `${icon.plus}Add tenant`;
 
 let tenancies = [], properties = [];
 const fmtDate = d => d ? new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-const ord = n => n + ([, 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || 'th');
 const live = l => ['active', 'signed'].includes(l.status);
 const leaseBadge = l => `<span class="badge ${live(l) ? 's-occupied' : l.status === 'ended' || l.status === 'cancelled' ? 'plain tag' : 's-notice'}">${esc(LEASE_STATUS[l.status])}</span>`;
 
@@ -98,7 +97,7 @@ function tenancyForm(l = {}) {
           <div class="input-prefix"><span>R</span><input id="l-dep" name="deposit" type="number" min="0" step="10" inputmode="decimal" value="${l.deposit ?? ''}"></div></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label for="l-due">Rent due on day</label><input id="l-due" name="rent_due_day" type="number" min="1" max="28" step="1" value="${l.rent_due_day ?? 1}"></div>
+        <div class="field"><label for="l-due">Rent due on day</label><input id="l-due" name="rent_due_day" type="number" min="1" max="31" step="1" value="${l.rent_due_day ?? 1}"></div>
         <div class="field" style="margin-bottom:0"><label for="l-esc">Yearly increase</label>
           <div class="input-prefix"><input id="l-esc" name="escalation_pct" type="number" min="0" max="100" step="0.5" value="${l.escalation_pct ?? 0}" style="padding-right:30px"><span style="left:auto;right:12px">%</span></div>
           <div class="hint">On each lease anniversary.</div></div>

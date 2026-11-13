@@ -1,7 +1,7 @@
 import { api, PAY_METHODS, PROVINCES } from './data.js';
 import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
 import { monthKey, addMonths, monthLabel, today, rentFor, currentRent, chargeMonths, dueDate,
-  chargeState, STATE_LABEL, balance, eftReference } from './ledger.js';
+  chargeState, STATE_LABEL, balance, eftReference, dueDayText } from './ledger.js';
 
 const profile = await mountShell('rent.html');
 const view = document.getElementById('view');
@@ -66,7 +66,7 @@ function card(l) {
   const t = l.tenant || {}, u = l.unit || {};
   const head = `<div class="prop-head"><div class="meta">
       <h2>${esc(t.full_name || 'Tenant')}</h2>
-      <div class="addr">${esc(u.label || '')}${u.property ? ' · ' + esc(u.property.name) : ''} · ${money(currentRent(l))} a month, due on the ${l.rent_due_day}${l.rent_due_day === 1 ? 'st' : l.rent_due_day === 2 ? 'nd' : l.rent_due_day === 3 ? 'rd' : 'th'}</div>
+      <div class="addr">${esc(u.label || '')}${u.property ? ' · ' + esc(u.property.name) : ''} · ${money(currentRent(l))} a month, due on ${esc(dueDayText(l))}</div>
       <div class="stats"><span>EFT reference <code>${esc(eftReference(u.label, t.full_name))}</code></span></div>
     </div>
     <div class="prop-actions">

@@ -85,7 +85,7 @@ function validateTenancy({ tenant, lease }) {
   if (lease.end_date && lease.end_date <= lease.start_date) throw new DataError('The end date must be after the start date.');
   if (!(Number(lease.monthly_rent) >= 0)) throw new DataError('Enter the monthly rent.');
   const d = Number(lease.rent_due_day);
-  if (!(d >= 1 && d <= 28)) throw new DataError('Rent due day must be between 1 and 28.');
+  if (!(d >= 1 && d <= 31)) throw new DataError('Rent due day must be between 1 and 31.');
 }
 const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k => [k, obj[k]]));
 

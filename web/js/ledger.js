@@ -45,7 +45,14 @@ export function chargeMonths(lease, through = monthKey(new Date())) {
 }
 
 // Due date of a month's rent, as 'YYYY-MM-DD'.
-export const dueDate = (lease, month) => month.slice(0, 8) + String(lease.rent_due_day || 1).padStart(2, '0');
+// A due day past the end of a short month falls on its last day (the 31st in April is the 30th).
+export const dueDay = (lease, month) => {
+  const [y, m] = month.split('-').map(Number);
+  return Math.min(Number(lease.rent_due_day) || 1, new Date(y, m, 0).getDate());
+};
+export const dueDate = (lease, month) => month.slice(0, 8) + String(dueDay(lease, month)).padStart(2, '0');
+export const ordinal = n => n + ([, 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || 'th');
+export const dueDayText = lease => Number(lease.rent_due_day) >= 29 ? `the ${ordinal(lease.rent_due_day)} (or the last day of shorter months)` : `the ${ordinal(lease.rent_due_day)}`;
 
 // paid | partial | overdue | due | upcoming
 export function chargeState(lease, p, on = today()) {
