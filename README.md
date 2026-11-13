@@ -33,7 +33,7 @@ web/                     Static site (plain HTML, CSS, JavaScript modules; no bu
 supabase/migrations/     Database schema and security rules
 tests/db/                Schema tests on a throwaway Postgres
 tests/ui/                Browser test of the whole demo flow
-.github/workflows/       Test on every push; deploy main to Azure Static Web Apps
+.github/workflows/       Test on every push; deploy main to GitHub Pages
 ```
 
 **Tenant access.** Tenants sign in with their own account (created from an invite, marked `role: tenant`, so they never get a landlord account). Database rules let them see only their own lease, unit, landlord contact, payments, repairs and messages. They can log repairs and send messages but can't change status, cost or anything the landlord set.
@@ -56,19 +56,21 @@ cd web && python3 -m http.server 8080
 3. **Authentication → URL Configuration**: set **Site URL** to your live address (for example `https://rentals.ryno-tec.co.za`) and add it under **Redirect URLs**.
 4. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 
-### 2. Hosting (Azure Static Web Apps, free tier)
+### 2. Hosting (GitHub Pages, free)
 
-1. Azure portal → **Static Web Apps** → **Create**. Plan: **Free**. Deployment source: **Other**.
-2. Open the new app → **Manage deployment token** → copy it.
-3. In this GitHub repo → **Settings → Secrets and variables → Actions**:
-   - Secret `AZURE_STATIC_WEB_APPS_API_TOKEN` = the deployment token
-   - Variable `SUPABASE_URL` = Project URL
-   - Variable `SUPABASE_ANON_KEY` = anon public key
-4. Push to `main` (or run the workflow by hand). Tests run first; the site deploys only if they pass.
+1. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. **Settings → Secrets and variables → Actions → Variables**:
+   - `SUPABASE_URL` = Project URL
+   - `SUPABASE_ANON_KEY` = anon public key
+   Both are public by design; the database rules protect the data.
+3. Push to `main` (or run the workflow by hand). Tests run first; the site deploys only if they pass.
+   Without the two variables it deploys in demo mode.
 
 ### 3. Custom domain
 
-Static Web App → **Custom domains** → add `rentals.ryno-tec.co.za`, then create the CNAME it shows at your DNS host. Azure issues the certificate.
+`web/CNAME` sets **rentals.ryno-tec.co.za**. At the DNS host add `CNAME rentals -> ryno-tec.github.io`,
+then tick **Enforce HTTPS** under Settings → Pages once the certificate is issued.
+Security headers are set with `<meta>` tags in each page, since GitHub Pages can't send custom headers.
 
 ## Tests
 
