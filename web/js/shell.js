@@ -34,11 +34,11 @@ export function brand(sub = 'by Ryno-Tec') {
 const NAV = [
   { href: 'dashboard.html', label: 'Dashboard', icon: 'home' },
   { href: 'properties.html', label: 'Properties & units', icon: 'building' },
+  { href: 'tenants.html', label: 'Tenants & leases', icon: 'users' },
+  { href: 'rent.html', label: 'Rent', icon: 'cash' },
 ];
 const SOON = [
-  { label: 'Tenants', icon: 'users' },
-  { label: 'Leases', icon: 'file' },
-  { label: 'Rent collection', icon: 'cash' },
+  { label: 'Lease e-signing', icon: 'file' },
   { label: 'Maintenance', icon: 'tool' },
 ];
 

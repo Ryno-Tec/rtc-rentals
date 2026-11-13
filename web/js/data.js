@@ -51,8 +51,8 @@ function friendly(err, context = '') {
   const msg = err?.message || String(err);
   if (msg.includes('TIER_LIMIT:')) return new DataError(msg.split('TIER_LIMIT:')[1].trim());
   switch (err?.code) {
-    case '23505': return new DataError(context === 'unit'
-      ? 'This property already has a unit with that name.' : 'That record already exists.');
+    case '23505': return new DataError(context === 'unit' ? 'This property already has a unit with that name.'
+      : context === 'lease' ? 'That unit already has an active lease. End it first.' : 'That record already exists.');
     case '23503': return new DataError(context === 'delete'
       ? 'This has a lease linked to it, so it can’t be deleted. End the lease first.'
       : 'The linked property no longer exists. Refresh and try again.');
@@ -71,6 +71,22 @@ const PROPERTY_FIELDS = ['name', 'property_type', 'street_address', 'suburb', 'c
   'postal_code', 'erf_number', 'municipality_account', 'notes'];
 const UNIT_FIELDS = ['property_id', 'label', 'bedrooms', 'bathrooms', 'size_m2', 'monthly_rent', 'deposit',
   'status', 'prepaid_meter_number', 'water_included', 'electricity_included', 'notes'];
+const TENANT_FIELDS = ['full_name', 'id_number', 'email', 'phone', 'employer', 'monthly_income'];
+const LEASE_FIELDS = ['unit_id', 'status', 'start_date', 'end_date', 'monthly_rent', 'deposit', 'rent_due_day', 'escalation_pct'];
+const PAYMENT_FIELDS = ['amount_due', 'amount_paid', 'status', 'method', 'paid_at', 'reference', 'notes'];
+export const LEASE_STATUS = { draft: 'Draft', sent: 'Sent to sign', signed: 'Signed', active: 'Active', ended: 'Ended', cancelled: 'Cancelled' };
+export const PAY_METHODS = { eft: 'EFT', cash: 'Cash', ozow: 'Ozow', card: 'Card', debicheck: 'DebiCheck', other: 'Other' };
+const payStatus = p => Number(p.amount_paid) >= Number(p.amount_due) && Number(p.amount_due) > 0 ? 'paid'
+  : Number(p.amount_paid) > 0 ? 'partial' : 'pending';
+function validateTenancy({ tenant, lease }) {
+  if (!tenant.full_name?.trim()) throw new DataError('Enter the tenant’s name.');
+  if (!lease.unit_id) throw new DataError('Choose the unit they rent.');
+  if (!lease.start_date) throw new DataError('Enter the date the lease started.');
+  if (lease.end_date && lease.end_date <= lease.start_date) throw new DataError('The end date must be after the start date.');
+  if (!(Number(lease.monthly_rent) >= 0)) throw new DataError('Enter the monthly rent.');
+  const d = Number(lease.rent_due_day);
+  if (!(d >= 1 && d <= 28)) throw new DataError('Rent due day must be between 1 and 28.');
+}
 const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k => [k, obj[k]]));
 
 // ============================================================================
@@ -156,11 +172,56 @@ const live = {
     const { error } = await sb.from('units').delete().eq('id', id);
     if (error) throw friendly(error, 'delete');
   },
+  async tenancies() {
+    const sb = await client();
+    const { data, error } = await sb.from('leases')
+      .select('*, tenant:tenants(*), unit:units(id, label, status, property:properties(id, name))')
+      .order('start_date', { ascending: false });
+    if (error) throw friendly(error);
+    return data;
+  },
+  async saveTenancy({ tenant, lease }) {
+    validateTenancy({ tenant, lease });
+    const sb = await client();
+    const trow = pick(tenant, TENANT_FIELDS);
+    const t = tenant.id ? await sb.from('tenants').update(trow).eq('id', tenant.id).select().single()
+                        : await sb.from('tenants').insert(trow).select().single();
+    if (t.error) throw friendly(t.error);
+    const lrow = { ...pick(lease, LEASE_FIELDS), tenant_id: t.data.id };
+    const l = lease.id ? await sb.from('leases').update(lrow).eq('id', lease.id).select().single()
+                       : await sb.from('leases').insert(lrow).select().single();
+    if (l.error) throw friendly(l.error, 'lease');
+    if (['active', 'signed'].includes(lrow.status))
+      await sb.from('units').update({ status: 'occupied' }).eq('id', lrow.unit_id).eq('status', 'vacant');
+    return l.data;
+  },
+  async payments(leaseIds) {
+    if (!leaseIds.length) return [];
+    const sb = await client();
+    const { data, error } = await sb.from('payments').select('*').in('lease_id', leaseIds).order('period_month');
+    if (error) throw friendly(error);
+    return data;
+  },
+  async addCharges(rows) {
+    if (!rows.length) return;
+    const sb = await client();
+    const { error } = await sb.from('payments').insert(rows.map(r => ({ ...r, status: payStatus(r) })));
+    if (error) throw friendly(error);
+  },
+  async savePayment(p) {
+    const sb = await client();
+    const row = pick(p, PAYMENT_FIELDS);
+    row.status = payStatus({ ...p, ...row });
+    const { error } = await sb.from('payments').update(row).eq('id', p.id);
+    if (error) throw friendly(error);
+  },
   async subscribe(onChange) {
     const sb = await client();
     const ch = sb.channel('portfolio')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, onChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'units' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leases' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, onChange)
       .subscribe();
     return () => sb.removeChannel(ch);
   },
@@ -333,6 +394,59 @@ const demo = {
     if ((s.leases || []).some(l => l.unit_id === id))
       throw new DataError('This unit has a lease linked to it, so it can’t be deleted. End the lease first.');
     s.units = s.units.filter(u => u.id !== id);
+    save(s); emit();
+  },
+  async tenancies() {
+    const s = load();
+    return (s.leases || []).map(l => {
+      const unit = s.units.find(u => u.id === l.unit_id);
+      const property = unit && s.properties.find(p => p.id === unit.property_id);
+      return { ...l, tenant: (s.tenants || []).find(t => t.id === l.tenant_id) || null,
+        unit: unit ? { id: unit.id, label: unit.label, status: unit.status, property: property ? { id: property.id, name: property.name } : null } : null };
+    }).sort((a, b) => b.start_date.localeCompare(a.start_date));
+  },
+  async saveTenancy({ tenant, lease }) {
+    validateTenancy({ tenant, lease });
+    const s = load();
+    s.tenants = s.tenants || []; s.leases = s.leases || [];
+    const now = new Date().toISOString();
+    let t = tenant.id && s.tenants.find(x => x.id === tenant.id);
+    if (t) Object.assign(t, pick(tenant, TENANT_FIELDS));
+    else { t = { id: uid(), created_at: now, ...pick(tenant, TENANT_FIELDS) }; s.tenants.push(t); }
+    const row = { ...pick(lease, LEASE_FIELDS), tenant_id: t.id };
+    if (['active', 'signed'].includes(row.status) &&
+        s.leases.some(x => x.unit_id === row.unit_id && x.id !== lease.id && ['active', 'signed'].includes(x.status)))
+      throw new DataError('That unit already has an active lease. End it first.');
+    let l = lease.id && s.leases.find(x => x.id === lease.id);
+    if (l) Object.assign(l, row); else { l = { id: uid(), created_at: now, ...row }; s.leases.push(l); }
+    if (['active', 'signed'].includes(row.status)) {
+      const u = s.units.find(x => x.id === row.unit_id);
+      if (u && u.status === 'vacant') u.status = 'occupied';
+    }
+    save(s); emit();
+    return l;
+  },
+  async payments(leaseIds) {
+    const s = load();
+    return (s.payments || []).filter(p => leaseIds.includes(p.lease_id))
+      .sort((a, b) => a.period_month.localeCompare(b.period_month));
+  },
+  async addCharges(rows) {
+    const s = load();
+    s.payments = s.payments || [];
+    for (const r of rows) {
+      if (s.payments.some(p => p.lease_id === r.lease_id && p.period_month === r.period_month)) continue;
+      s.payments.push({ id: uid(), created_at: new Date().toISOString(), amount_paid: 0, method: null, paid_at: null,
+        provider_ref: null, reference: null, notes: null, opening_balance: false, ...r, status: payStatus(r) });
+    }
+    save(s); emit();
+  },
+  async savePayment(p) {
+    const s = load();
+    const x = (s.payments || []).find(y => y.id === p.id);
+    if (!x) throw new DataError('That month no longer exists. Refresh and try again.');
+    Object.assign(x, pick(p, PAYMENT_FIELDS));
+    x.status = payStatus(x);
     save(s); emit();
   },
   async subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },

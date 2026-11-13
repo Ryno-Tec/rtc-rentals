@@ -354,3 +354,10 @@ code.ref { font-family: var(--mono); font-size: 13px; background: #f1f5f9; color
   .tenant-body .demo-banner span { display: none; }
   .chat-card { height: calc(100dvh - 290px); min-height: 320px; }
 }
+
+/* Tenants & rent */
+.form-section { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 10px; font-weight: 650; }
+.form-section:first-child { margin-top: 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--bg, #f1f5f9); padding: 1px 6px; border-radius: 6px; }
+.prop table th[scope="row"] { font-weight: 550; color: var(--muted); width: 1%; white-space: nowrap; }
+.setup { border-top: 1px solid var(--border); }
