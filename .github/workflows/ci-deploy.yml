@@ -64,6 +64,8 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
+          # Accept the URL with or without the /rest/v1/ path the dashboard sometimes shows.
+          SUPABASE_URL="$(echo "$SUPABASE_URL" | sed -E 's#/rest/v1/?$##; s#/+$##')"
           if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
             cat > web/js/config.js <<EOF
           export const config = {
