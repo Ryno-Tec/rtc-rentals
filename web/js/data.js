@@ -67,7 +67,7 @@ const uid = () => (globalThis.crypto?.randomUUID?.() ??
     const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
   }));
 
-const PROPERTY_FIELDS = ['name', 'property_type', 'street_address', 'suburb', 'city', 'province',
+const PROPERTY_FIELDS = ['name', 'property_type', 'owner_id', 'street_address', 'suburb', 'city', 'province',
   'postal_code', 'erf_number', 'municipality_account', 'notes'];
 const UNIT_FIELDS = ['property_id', 'label', 'bedrooms', 'bathrooms', 'size_m2', 'monthly_rent', 'deposit',
   'status', 'prepaid_meter_number', 'water_included', 'electricity_included', 'notes'];

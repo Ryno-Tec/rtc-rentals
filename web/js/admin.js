@@ -33,6 +33,8 @@ function overview() {
     ${k('Units', o.units, `${o.properties} properties`)}
     ${k('Tenants', o.tenants, `${o.tenants_on_app} use the app`)}
     ${k('Online payments switched on', o.ozow_connected, 'landlords with Ozow connected')}
+    ${o.extra ? k('Automatic payments', o.extra.autopay_active, `${rand(o.extra.autopay_collected_month)} collected this month`) : ''}
+    ${o.extra ? k('Agencies', o.extra.team_members, `team logins · ${o.extra.owners_managed} owners managed`) : ''}
     ${k('Payment alerts (7 days)', o.alerts_7d, o.alerts_7d ? '<a href="#alerts">Look at them</a>' : 'all clear')}
   </div>`;
 }
@@ -113,6 +115,7 @@ async function refresh() {
   try {
     if (isDemo()) throw new DataError('The admin dashboard works on the live system only.');
     [o, landlords, invoices, events] = await Promise.all([rpc('admin_overview'), rpc('admin_landlords'), rpc('admin_invoices'), rpc('admin_events')]);
+    o.extra = await rpc('admin_overview_extra').catch(() => null);
     render();
   } catch (ex) { view.innerHTML = `<div class="card card-pad"><h2>Not available</h2><p class="muted">${esc(ex.message)}</p></div>`; }
 }

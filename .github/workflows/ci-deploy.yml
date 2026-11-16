@@ -42,6 +42,7 @@ jobs:
           python tests/ui/lock_test.py
           python tests/ui/features_test.py
           python tests/ui/billing_test.py
+          python tests/ui/agency_test.py
 
       - name: Keep screenshots
         if: always()
@@ -62,6 +63,7 @@ jobs:
       RTC_OZOW_CLIENT_ID: ${{ secrets.RTC_OZOW_CLIENT_ID }}
       RTC_OZOW_CLIENT_SECRET: ${{ secrets.RTC_OZOW_CLIENT_SECRET }}
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Ozow functions
@@ -79,11 +81,16 @@ jobs:
           done
           # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
           # rentals.ryno-tec.co.za; RTC_OZOW_IS_TEST=true only for Ozow staging credentials.
+          # Server-only settings, copied to Supabase when present (the token needs Edge Functions secrets write).
+          SET=()
           if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then
-            npx -y supabase@latest secrets set --yes --project-ref "$REF" \
-              "RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_CLIENT_ID=$RTC_OZOW_CLIENT_ID" "RTC_OZOW_CLIENT_SECRET=$RTC_OZOW_CLIENT_SECRET" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}"
+            SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_CLIENT_ID=$RTC_OZOW_CLIENT_ID" "RTC_OZOW_CLIENT_SECRET=$RTC_OZOW_CLIENT_SECRET" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
+          fi
+          [ -n "$BREVO_API_KEY" ] && SET+=("BREVO_API_KEY=$BREVO_API_KEY")
+          if [ ${#SET[@]} -gt 0 ]; then
+            npx -y supabase@latest secrets set --yes --project-ref "$REF" "${SET[@]}"
           else
-            echo "::notice::Ryno-Tec Ozow secrets not set yet; invoices can be paid by EFT until then."
+            echo "::notice::No server secrets to set (Ryno-Tec Ozow keys, BREVO_API_KEY)."
           fi
 
   deploy:

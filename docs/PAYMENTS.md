@@ -50,3 +50,17 @@ no person or browser can read them back from the app.
 Steps for an Ozow secret: in the Ozow dashboard (One API Clients) create a new secret → update the GitHub secret →
 push or re-run "Test and deploy" → make one small test payment → revoke the old secret in Ozow.
 Ozow Dashboard access: give each person only the roles they need; keep Settlement, Refund and Banking admin to the director.
+
+## Automatic payments (015)
+- **Capitec Pay recurring** (Ozow One API recurring payments, beta): the landlord's Ozow One API client needs the
+  `subscriptions` scope and Ozow must enable recurring payments on the merchant. Tenant approves once in the Capitec app
+  (3-minute window); `autopay-run` (hourly) collects the month's outstanding rent on/after the due day, never above the
+  approved maximum, at most one retry 3 days later, and records results through `complete_online_payment`.
+- **DebiCheck** (each landlord's own Netcash account): the landlord saves their Netcash debit order service key; the tenant
+  approves a DebiCheck mandate through Netcash; the landlord records the mandate reference. `autopay-run` uploads a batch
+  (NIWS_NIF BatchFileUpload) on the due day; rejections from the load report are marked failed. Successful debits are confirmed
+  on the landlord's Netcash statement (marked paid on the Rent page). Beta: test with one tenant first.
+- **Stopping**: tenant or landlord; collections stop immediately; Ozow consent is cancelled on the next run.
+- **Reminders**: `rent-reminders` (daily 07:05 SA) emails tenants via Brevo's API. Add a Brevo API key (Brevo → SMTP & API →
+  API keys) as GitHub secret `BREVO_API_KEY`; the deploy copies it to Supabase (token needs Edge Functions secrets write).
+- Schedule: `.github/workflows/autopay.yml`.

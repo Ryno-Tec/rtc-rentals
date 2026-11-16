@@ -1,5 +1,6 @@
 import { api, summarise, PROVINCES, PROPERTY_TYPES, UNIT_STATUS } from './data.js';
 import { mountShell, esc, money, pct, icon, toast, openModal, confirmDialog, formData } from './shell.js';
+import { agencyApi } from './agency-data.js';
 
 const profile = await mountShell('properties.html');
 const list = document.getElementById('list');
@@ -7,7 +8,7 @@ const search = document.getElementById('search');
 const statusFilter = document.getElementById('status-filter');
 document.getElementById('add-property').innerHTML = `${icon.plus}Add property`;
 
-let properties = [];
+let properties = [], owners = [];
 
 const options = (map, selected) =>
   Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${esc(v)}</option>`).join('');
@@ -53,6 +54,7 @@ function render() {
       <div class="prop-head">
         <div class="meta">
           <h2>${esc(p.name)} <span class="badge tag plain" style="margin-left:6px;vertical-align:2px">${esc(PROPERTY_TYPES[p.property_type])}</span></h2>
+          ${p.owner_id && owners.find(o => o.id === p.owner_id) ? `<div class="unit-sub">Owner: ${esc(owners.find(o => o.id === p.owner_id).full_name)}</div>` : ''}
           <div class="addr">${esc([p.street_address, p.suburb, p.city, PROVINCES[p.province], p.postal_code].filter(Boolean).join(', '))}</div>
           <div class="stats"><span><b class="num">${s.units}</b> ${s.units === 1 ? 'unit' : 'units'}</span>
             <span><b class="num">${s.units ? pct(s.occupancy) : '—'}</b> let</span>
@@ -90,7 +92,7 @@ function render() {
 }
 
 async function refresh() {
-  try { properties = await api.properties(); render(); }
+  try { [properties, owners] = await Promise.all([api.properties(), agencyApi.owners().catch(() => [])]); render(); }
   catch (e) { list.innerHTML = `<div class="form-error">Couldn’t load properties: ${esc(e.message)}</div>`; }
 }
 
@@ -105,6 +107,8 @@ function propertyForm(p = {}) {
       <div class="field"><label for="f-name">Property name</label>
         <input id="f-name" name="name" required value="${esc(p.name)}" placeholder="e.g. Mabaso Street rooms">
         <div class="hint">What you call it. Tenants won’t see this.</div></div>
+      ${owners.length ? `<div class="field"><label for="f-owner">Owner <span class="muted">(for agencies)</span></label>
+        <select id="f-owner" name="owner_id"><option value="">Our own property</option>${owners.map(o => `<option value="${o.id}" ${o.id === p.owner_id ? 'selected' : ''}>${esc(o.full_name)}</option>`).join('')}</select></div>` : ''}
       <div class="field"><label for="f-type">Type</label>
         <select id="f-type" name="property_type">${options(PROPERTY_TYPES, p.property_type || 'house')}</select></div>
       <div class="field"><label for="f-street">Street address</label>
