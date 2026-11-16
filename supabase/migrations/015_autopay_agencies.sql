@@ -1,4 +1,4 @@
--- 015: automatic rent payments, rent reminders, and agencies (team logins, property owners,
+-- 015 (safe to run again): automatic rent payments, rent reminders, and agencies (team logins, property owners,
 -- management fees, owner statements and payouts).
 --
 -- Automatic payments never route money through Ryno-Tec: each landlord (or agency) uses their own
@@ -10,7 +10,7 @@
 -- ============================================================================
 -- Agencies: team members share the agency's records through get_landlord_id()
 -- ============================================================================
-create table public.agency_members (
+create table if not exists public.agency_members (
   id          uuid primary key default gen_random_uuid(),
   landlord_id uuid not null default public.get_landlord_id() references public.landlords(id) on delete cascade,
   user_id     uuid unique references auth.users(id) on delete set null,
@@ -20,10 +20,10 @@ create table public.agency_members (
   active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
-create unique index agency_members_email_idx on public.agency_members(landlord_id, lower(email));
+create unique index if not exists agency_members_email_idx on public.agency_members(landlord_id, lower(email));
 alter table public.agency_members enable row level security;
 
-create table public.member_invites (
+create table if not exists public.member_invites (
   id          uuid primary key default gen_random_uuid(),
   landlord_id uuid not null references public.landlords(id) on delete cascade,
   member_id   uuid not null references public.agency_members(id) on delete cascade,
@@ -54,9 +54,11 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 grant execute on function public.is_account_admin() to authenticated;
 
+drop policy if exists agency_members_read on public.agency_members;
 create policy agency_members_read on public.agency_members for select to authenticated
   using (landlord_id = public.get_landlord_id());
 revoke insert, update, delete on public.agency_members from anon, authenticated;
+drop policy if exists landlords_member_read on public.landlords;
 create policy landlords_member_read on public.landlords for select to authenticated
   using (id = public.get_landlord_id());
 
@@ -168,7 +170,7 @@ end $$;
 -- ============================================================================
 -- Property owners (an agency's clients), management fees, statements and payouts
 -- ============================================================================
-create table public.property_owners (
+create table if not exists public.property_owners (
   id          uuid primary key default gen_random_uuid(),
   landlord_id uuid not null default public.get_landlord_id() references public.landlords(id) on delete cascade,
   full_name   text not null check (length(trim(full_name)) between 2 and 160),
@@ -183,6 +185,7 @@ create table public.property_owners (
   unique (id, landlord_id)
 );
 alter table public.property_owners enable row level security;
+drop policy if exists property_owners_all on public.property_owners;
 create policy property_owners_all on public.property_owners for all to authenticated
   using (landlord_id = public.get_landlord_id()) with check (landlord_id = public.get_landlord_id());
 
@@ -191,7 +194,7 @@ alter table public.properties drop constraint if exists properties_owner_fk;
 alter table public.properties add constraint properties_owner_fk foreign key (owner_id, landlord_id)
   references public.property_owners(id, landlord_id) on delete set null (owner_id);
 
-create table public.owner_payouts (
+create table if not exists public.owner_payouts (
   id           uuid primary key default gen_random_uuid(),
   landlord_id  uuid not null default public.get_landlord_id() references public.landlords(id) on delete cascade,
   owner_id     uuid not null,
@@ -205,13 +208,14 @@ create table public.owner_payouts (
   foreign key (owner_id, landlord_id) references public.property_owners(id, landlord_id) on delete cascade
 );
 alter table public.owner_payouts enable row level security;
+drop policy if exists owner_payouts_all on public.owner_payouts;
 create policy owner_payouts_all on public.owner_payouts for all to authenticated
   using (landlord_id = public.get_landlord_id()) with check (landlord_id = public.get_landlord_id());
 
 -- ============================================================================
 -- Automatic payments
 -- ============================================================================
-create table public.autopay_settings (
+create table if not exists public.autopay_settings (
   landlord_id   uuid primary key references public.landlords(id) on delete cascade,
   ozow_capitec  boolean not null default false,       -- Capitec Pay recurring, through the landlord's Ozow account
   netcash       boolean not null default false,       -- DebiCheck through the landlord's Netcash account
@@ -220,18 +224,19 @@ create table public.autopay_settings (
   updated_at    timestamptz not null default now()
 );
 alter table public.autopay_settings enable row level security;
+drop policy if exists autopay_settings_read on public.autopay_settings;
 create policy autopay_settings_read on public.autopay_settings for select to authenticated
   using (landlord_id = public.get_landlord_id());
 revoke insert, update, delete on public.autopay_settings from anon, authenticated;
 
-create table public.netcash_secrets (
+create table if not exists public.netcash_secrets (
   landlord_id uuid primary key references public.landlords(id) on delete cascade,
   service_key text not null
 );
 alter table public.netcash_secrets enable row level security;           -- no policies
 revoke all on public.netcash_secrets from anon, authenticated;
 
-create table public.payment_mandates (
+create table if not exists public.payment_mandates (
   id               uuid primary key default gen_random_uuid(),
   landlord_id      uuid not null references public.landlords(id) on delete cascade,
   lease_id         uuid not null references public.leases(id) on delete cascade,
@@ -249,15 +254,17 @@ create table public.payment_mandates (
   provider_cancelled boolean not null default false,   -- the cancel has also reached Ozow
   last_detail      jsonb
 );
-create unique index payment_mandates_one_live on public.payment_mandates(lease_id) where status in ('pending', 'active');
+create unique index if not exists payment_mandates_one_live on public.payment_mandates(lease_id) where status in ('pending', 'active');
 alter table public.payment_mandates enable row level security;
+drop policy if exists payment_mandates_owner_read on public.payment_mandates;
 create policy payment_mandates_owner_read on public.payment_mandates for select to authenticated
   using (landlord_id = public.get_landlord_id());
+drop policy if exists payment_mandates_tenant_read on public.payment_mandates;
 create policy payment_mandates_tenant_read on public.payment_mandates for select to authenticated
   using (lease_id in (select public.tenant_lease_ids()));
 revoke insert, update, delete on public.payment_mandates from anon, authenticated;
 
-create table public.mandate_collections (
+create table if not exists public.mandate_collections (
   id                uuid primary key default gen_random_uuid(),
   landlord_id       uuid not null references public.landlords(id) on delete cascade,
   mandate_id        uuid not null references public.payment_mandates(id) on delete cascade,
@@ -275,13 +282,15 @@ create table public.mandate_collections (
   unique (mandate_id, period_month, attempt)
 );
 alter table public.mandate_collections enable row level security;
+drop policy if exists mandate_collections_owner_read on public.mandate_collections;
 create policy mandate_collections_owner_read on public.mandate_collections for select to authenticated
   using (landlord_id = public.get_landlord_id());
+drop policy if exists mandate_collections_tenant_read on public.mandate_collections;
 create policy mandate_collections_tenant_read on public.mandate_collections for select to authenticated
   using (mandate_id in (select id from public.payment_mandates where lease_id in (select public.tenant_lease_ids())));
 revoke insert, update, delete on public.mandate_collections from anon, authenticated;
 
-create table public.rent_reminders (
+create table if not exists public.rent_reminders (
   payment_id uuid not null references public.payments(id) on delete cascade,
   kind       text not null check (kind in ('before', 'due', 'late_1', 'late_7')),
   sent_at    timestamptz not null default now(),
@@ -290,7 +299,7 @@ create table public.rent_reminders (
 alter table public.rent_reminders enable row level security;
 revoke all on public.rent_reminders from anon, authenticated;
 
-create table public.job_runs (name text primary key, last_run timestamptz);
+create table if not exists public.job_runs (name text primary key, last_run timestamptz);
 alter table public.job_runs enable row level security;
 revoke all on public.job_runs from anon, authenticated;
 
