@@ -103,11 +103,34 @@
     leaveDemo(); location.reload();          // reload so the live backend is used
   } else if (location.hash.includes('type=recovery')) {
     // Arrived from a password-reset email: Supabase has signed them in; ask for the new password.
-    const pw = prompt('Choose a new password (at least 8 characters):');
-    if (pw && pw.length >= 8) {
-      try { await api.updatePassword(pw); location.replace('dashboard.html'); }
-      catch (ex) { alert(ex.message); }
-    }
+    $('title').textContent = 'Choose a new password';
+    $('subtitle').textContent = 'You opened a password reset link. Set your new password to continue.';
+    for (const id of ['demo', 'demo-tenant', 'oauth']) $(id)?.classList.add('hidden');
+    $('auth-forms').classList.add('hidden');      // keep the sign-in form (the code below wires it) but hidden
+    $('auth-forms').insertAdjacentHTML('afterend', `
+      <form id="reset" novalidate style="margin-top:20px">
+        <div class="form-error hidden" role="alert" id="r-error"></div>
+        <div class="field"><label for="r-pw">New password</label><input id="r-pw" type="password" autocomplete="new-password" minlength="8"></div>
+        <div class="field"><label for="r-pw2">Type it again</label><input id="r-pw2" type="password" autocomplete="new-password" minlength="8">
+          <div class="hint">At least 8 characters.</div></div>
+        <label class="check" style="margin-bottom:14px"><input type="checkbox" id="r-show"> <span>Show password</span></label>
+        <button class="btn btn-block" type="submit" id="r-go">Save new password</button>
+      </form>`);
+    $('r-show').addEventListener('change', e => { $('r-pw').type = $('r-pw2').type = e.target.checked ? 'text' : 'password'; });
+    $('r-pw').focus();
+    $('reset').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fail = m => { $('r-error').textContent = m; $('r-error').classList.remove('hidden'); };
+      const pw = $('r-pw').value;
+      if (pw.length < 8) return fail('Your password needs at least 8 characters.');
+      if (pw !== $('r-pw2').value) return fail('The two passwords don’t match.');
+      $('r-go').disabled = true;
+      try {
+        await api.updatePassword(pw);
+        history.replaceState(null, '', 'index.html');
+        await home(await api.session());
+      } catch (ex) { fail(ex.message); $('r-go').disabled = false; }
+    });
   } else {
     const s = await api.session();
     if (s) await home(s);

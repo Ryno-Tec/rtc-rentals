@@ -132,6 +132,32 @@ with sync_playwright() as pw:
     expect(live.get_by_role("button", name="Continue with Apple")).to_be_visible()
     expect(live.get_by_role("button", name="Continue with Microsoft")).to_have_count(0)
     live.screenshot(path=SHOTS / "signin-social.png")
+
+    # ---- Password reset link: a proper form, not a browser prompt
+    reset = browser.new_page()
+    reset.on("pageerror", lambda e: errors.append(f"reset: {e}"))
+    reset.on("dialog", lambda d: (errors.append("reset: browser dialog shown"), d.dismiss()))
+    reset.route("**/js/config.js", lambda r: r.fulfill(content_type="text/javascript",
+        body="export const config = { supabaseUrl: 'https://test.supabase.co', supabaseAnonKey: 'anon' };"))
+    reset.route("https://test.supabase.co/auth/v1/settings", lambda r: r.fulfill(content_type="application/json",
+        headers={"access-control-allow-origin": "*"}, body=json.dumps({"external": {}})))
+    reset.route("https://cdn.jsdelivr.net/**", lambda r: r.fulfill(content_type="text/javascript", body="""
+        window.__pw = null;
+        export function createClient(){ return {
+          auth: { getSession: async () => ({ data: { session: { user: { email: 'o@x.co', user_metadata: { role: 'landlord' } } } } }),
+                  updateUser: async (u) => { window.__pw = u.password; return { error: null }; },
+                  onAuthStateChange(){ return { data: { subscription: { unsubscribe(){} } } }; } },
+          rpc: async () => ({ data: [{ owner: true, tenant: false, side: null }], error: null }) }; }"""))
+    reset.route("**/dashboard.html", lambda r: r.fulfill(content_type="text/html", body="<p id=dash>dashboard</p>"))
+    reset.goto(f"{BASE}/index.html#access_token=x&type=recovery")
+    expect(reset.locator("#title")).to_have_text("Choose a new password")
+    reset.locator("#r-pw").fill("abcdefgh1"); reset.locator("#r-pw2").fill("abcdefgh2")
+    reset.locator("#r-go").click()
+    expect(reset.locator("#r-error")).to_contain_text("don’t match")
+    reset.locator("#r-pw2").fill("abcdefgh1")
+    reset.screenshot(path=SHOTS / "password-reset.png")
+    reset.locator("#r-go").click()
+    reset.wait_for_url("**/dashboard.html")
     browser.close()
 
 PHOTO.unlink(missing_ok=True)
