@@ -105,7 +105,7 @@
     }
   } else {
     const s = await api.session();
-    if (s) location.replace(s.role === 'tenant' ? 'tenant.html' : 'dashboard.html');
+    if (s) location.replace({ tenant: 'tenant.html', staff: 'staff.html' }[s.role] || 'dashboard.html');
   }
 
   let mode = 'signin';
@@ -136,7 +136,7 @@
     try {
       if (mode === 'signin') {
         await api.signIn(email, password);
-        location.replace((await api.session())?.role === 'tenant' ? 'tenant.html' : 'dashboard.html');
+        location.replace({ tenant: 'tenant.html', staff: 'staff.html' }[(await api.session())?.role] || 'dashboard.html');
       }
       else {
         const { needsConfirmation } = await api.signUp(email, password, name);

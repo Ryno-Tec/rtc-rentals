@@ -39,16 +39,16 @@ const NAV = [
   { href: 'rent.html', label: 'Rent', icon: 'cash' },
   { href: 'leases.html', label: 'Lease signing', icon: 'file' },
   { href: 'inspections.html', label: 'Inspections', icon: 'clipboard' },
+  { href: 'maintenance.html', label: 'Maintenance', icon: 'tool' },
 ];
-const SOON = [
-  { label: 'Maintenance', icon: 'tool' },
-];
+const SOON = [];
 
 // Renders the sidebar around #content and returns the signed-in profile.
 export async function mountShell(active) {
   const session = await api.session();
   if (!session) { location.replace('index.html'); return new Promise(() => {}); }
   if (session.role === 'tenant') { location.replace('tenant.html'); return new Promise(() => {}); }
+  if (session.role === 'staff') { location.replace('staff.html'); return new Promise(() => {}); }
   const profile = await api.profile().catch(() => ({ full_name: session.name, email: session.email, limits: null }));
 
   const content = document.getElementById('content');
@@ -59,8 +59,7 @@ export async function mountShell(active) {
       ${brand()}
       <nav class="nav">
         ${NAV.map(n => `<a href="${n.href}" ${n.href === active ? 'aria-current="page"' : ''}>${icon[n.icon]}${n.label}</a>`).join('')}
-        <div class="nav-label">Coming in Phase 1</div>
-        ${SOON.map(n => `<span class="soon">${icon[n.icon]}${n.label}<em>Soon</em></span>`).join('')}
+        ${SOON.length ? `<div class="nav-label">Coming soon</div>${SOON.map(n => `<span class="soon">${icon[n.icon]}${n.label}<em>Soon</em></span>`).join('')}` : ''}
       </nav>
       <div class="sidebar-foot">
         <div class="who">${esc(profile.full_name || profile.email)}</div>

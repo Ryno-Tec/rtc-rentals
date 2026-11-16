@@ -260,10 +260,11 @@ function repairsView() {
           <span class="pill pill-${statusTone(r.status)}">${REQUEST_STATUS[r.status]}</span>
         </div>
         ${r.description ? `<p class="req-desc">${esc(r.description)}</p>` : ''}
+        ${(r.assigned_name || r.contractor) && !['resolved', 'closed'].includes(r.status) ? `<p class="req-who">${ico.tool}<span><b>${esc(r.assigned_name || r.contractor)}</b> will do the work${r.scheduled_for ? `, booked for ${esc(new Date(r.scheduled_for + 'T00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}.</span></p>` : ''}
         ${r.photo_names?.length ? `<p class="unit-sub">${r.photo_names.length} photo${r.photo_names.length > 1 ? 's' : ''} attached</p>` : ''}
         <ol class="timeline">
           <li><span class="tl-dot"></span><div><b>You reported it</b><div class="unit-sub">${when(r.created_at)}</div></div></li>
-          ${(r.updates || []).map(u => `<li><span class="tl-dot tl-ll"></span><div>${esc(u.text)}<div class="unit-sub">${esc(data.landlord.full_name)} · ${when(u.at)}</div></div></li>`).join('')}
+          ${(r.updates || []).map(u => `<li><span class="tl-dot ${u.author === 'staff' ? 'tl-ok' : 'tl-ll'}"></span><div>${esc(u.text)}<div class="unit-sub">${esc(u.author === 'staff' ? (r.assigned_name || 'Maintenance') : data.landlord.full_name)} · ${when(u.at)}</div></div></li>`).join('')}
           ${r.resolved_at ? `<li><span class="tl-dot tl-ok"></span><div><b>Marked fixed</b><div class="unit-sub">${when(r.resolved_at)}</div></div></li>` : ''}
         </ol>
       </article>`).join('')

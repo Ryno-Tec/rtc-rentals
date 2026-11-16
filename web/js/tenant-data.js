@@ -51,10 +51,10 @@ const live = {
   async maintenance() {
     const sb = await client();
     const { data, error } = await sb.from('maintenance_requests')
-      .select('*, maintenance_updates(body, created_at)').order('created_at', { ascending: false });
+      .select('*, maintenance_updates(*)').order('created_at', { ascending: false });
     if (error) throw new DataError(error.message);
     return data.map(r => ({ ...r, updates: (r.maintenance_updates || [])
-      .map(x => ({ at: x.created_at, text: x.body })).sort((a, b) => a.at.localeCompare(b.at)) }));
+      .map(x => ({ at: x.created_at, text: x.body, author: x.author || 'landlord' })).sort((a, b) => a.at.localeCompare(b.at)) }));
   },
   async logRequest(unitId, req) {
     const sb = await client();
