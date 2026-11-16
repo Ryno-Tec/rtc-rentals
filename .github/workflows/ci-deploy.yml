@@ -75,9 +75,9 @@ jobs:
           [ -n "$RTC_OZOW_SITE_CODE" ] && ARGS="$ARGS RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE"
           [ -n "$RTC_OZOW_PRIVATE_KEY" ] && ARGS="$ARGS RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY"
           ARGS="$ARGS RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-true}"
-          npx -y supabase@latest secrets set --project-ref "$REF" $ARGS
-          npx -y supabase@latest functions deploy ozow-pay --project-ref "$REF" --use-api
-          npx -y supabase@latest functions deploy ozow-notify --project-ref "$REF" --no-verify-jwt --use-api
+          npx -y supabase@latest secrets set --yes --project-ref "$REF" $ARGS
+          npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
+          npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
 
   deploy:
     needs: test
