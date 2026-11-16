@@ -1,6 +1,7 @@
 import { isDemo, PROVINCES, leaveDemo } from './data.js';
 import { tenantApi as api, CATEGORIES, URGENCY, REQUEST_STATUS, paymentReference } from './tenant-data.js';
 import { brand, esc, money, icon, toast, openModal, formData } from './shell.js';
+import { appLock, lockSettings } from './lock.js';
 import { docsApi, KINDS, roomTemplate } from './docs-data.js';
 import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton, hasSigned } from './lease-ui.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
@@ -20,7 +21,12 @@ const ico = {
 // ---------------------------------------------------------------------------
 const session = await api.session();
 if (!session) location.replace('index.html');
-else if (session.role !== 'tenant') location.replace('dashboard.html');
+else if (session.role !== 'tenant') location.replace(session.role === 'staff' ? 'staff.html' : 'dashboard.html');
+else {
+  await appLock(session, async () => { await api.signOut(); leaveDemo(); });
+  document.getElementById('t-lock').innerHTML = icon.lock;
+  document.getElementById('t-lock').addEventListener('click', () => lockSettings(session));
+}
 
 document.getElementById('t-brand').innerHTML = brand('Tenant');
 const TABS = [

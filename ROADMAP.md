@@ -14,6 +14,8 @@ experiences (owner and tenant), enforced by row-level security.
 - Move-in, move-out and routine inspections: room-by-room checklist, photos, both parties confirm.
 - Maintenance: faults per property, a maintenance team with their own login and job app,
   tenant sees who's coming and progress; employment contract for directly employed staff.
+- App lock: 6-digit PIN and fingerprint/face unlock (WebAuthn platform authenticator) on each
+  device; locks on reopen or after idle; 5 wrong PINs signs out.
 - Store readiness: privacy and account-deletion page, store screenshots, Android build config
   (Google Play and Huawei AppGallery), guide in docs/APP-STORES.md.
 

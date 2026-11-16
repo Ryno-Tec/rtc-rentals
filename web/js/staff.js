@@ -4,6 +4,7 @@ import { isDemo, configured, client, leaveDemo } from './data.js';
 import { maintApi as m, STATUS, PRIORITY, isOpen } from './maint-data.js';
 import { brand, esc, icon, toast, openModal } from './shell.js';
 import { fmtWhen } from './lease-ui.js';
+import { appLock, lockSettings } from './lock.js';
 
 const ico = {
   ...icon,
@@ -167,6 +168,9 @@ async function start() {
   const s = await m.session();
   if (!s) { location.replace('index.html'); return; }
   if (!isDemo() && s.role !== 'staff') { location.replace(s.role === 'tenant' ? 'tenant.html' : 'dashboard.html'); return; }
+  await appLock(s, async () => { await m.signOut(); leaveDemo(); });
+  document.getElementById('t-lock').innerHTML = icon.lock;
+  document.getElementById('t-lock').addEventListener('click', () => lockSettings(s));
   const me = await m.me().catch(() => []);
   document.getElementById('t-name').textContent = me[0]?.full_name || s.name || s.email;
   if (!me.length && !isDemo()) return problem('You’re not on a team yet', 'Ask the property owner to send you a login link.');

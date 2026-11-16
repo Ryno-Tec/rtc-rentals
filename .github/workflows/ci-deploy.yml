@@ -36,6 +36,7 @@ jobs:
           python tests/ui/smoke_test.py
           python tests/ui/docs_test.py
           python tests/ui/maintenance_test.py
+          python tests/ui/lock_test.py
 
       - name: Keep screenshots
         if: always()
