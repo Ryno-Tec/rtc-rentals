@@ -1,6 +1,9 @@
 import { isDemo, PROVINCES, leaveDemo } from './data.js';
 import { tenantApi as api, CATEGORIES, URGENCY, REQUEST_STATUS, paymentReference } from './tenant-data.js';
 import { brand, esc, money, icon, toast, openModal, formData } from './shell.js';
+import { docsApi, KINDS, roomTemplate } from './docs-data.js';
+import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton, hasSigned } from './lease-ui.js';
+import { mountInspection, inspectionCard } from './inspect-ui.js';
 
 const ico = {
   ...icon,
@@ -8,6 +11,7 @@ const ico = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>',
   receipt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>',
+  clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 20 4l-6 16-3-7z"/></svg>',
 };
 
@@ -24,7 +28,10 @@ const TABS = [
   { id: 'payments', label: 'Rent', icon: 'cash' },
   { id: 'repairs', label: 'Repairs', icon: 'tool' },
   { id: 'messages', label: 'Messages', icon: 'message' },
+  { id: 'lease', label: 'Lease', icon: 'file' },
+  { id: 'inspection', label: 'Inspection', icon: 'clipboard' },
 ];
+const docs = docsApi('tenant');
 const tabsEl = document.getElementById('t-tabs');
 tabsEl.innerHTML = TABS.map(t => `<a href="#${t.id}" data-tab="${t.id}">${ico[t.icon]}<span>${t.label}</span><b class="t-dot hidden"></b></a>`).join('');
 
@@ -66,26 +73,48 @@ const paidLate = (p, lease) => p.paid_at && startOfDay(new Date(p.paid_at)) > du
 // State and rendering
 // ---------------------------------------------------------------------------
 const view = document.getElementById('t-view');
-let data, requests = [], messages = [];
+let data, requests = [], messages = [], leaseDocs = [], inspections = [];
+// A new tenant whose lease is still out for signing has nothing else to see yet: Lease tab only.
+let limited = false;
 
 async function loadAll() {
-  [data, requests, messages] = await Promise.all([api.home(), api.maintenance(), api.messages()]);
+  try {
+    [data, requests, messages] = await Promise.all([api.home(), api.maintenance(), api.messages()]);
+    limited = false;
+  } catch (ex) {
+    leaseDocs = await docs.leaseDocs().catch(() => []);
+    if (!leaseDocs.length) throw ex;
+    limited = true;
+    data = { tenant: { full_name: leaseDocs[0].body?.parties?.tenant?.name || '' } };
+    return;
+  }
+  // These need database update 006; until it is installed the rest of the app still works.
+  [leaseDocs, inspections] = await Promise.all([docs.leaseDocs().catch(() => []), docs.inspections().catch(() => [])]);
 }
 
+const hashParts = () => location.hash.slice(1).split('/');
 function currentTab() {
-  const t = location.hash.slice(1);
+  if (limited) return 'lease';
+  const t = hashParts()[0];
   return TABS.some(x => x.id === t) ? t : 'home';
 }
 
 function render() {
   const tab = currentTab();
   tabsEl.querySelectorAll('a').forEach(a => a.setAttribute('aria-current', a.dataset.tab === tab ? 'page' : 'false'));
+  tabsEl.querySelectorAll('a').forEach(a => a.classList.toggle('hidden', limited && a.dataset.tab !== 'lease'));
   const openCount = requests.filter(r => !['resolved', 'closed'].includes(r.status)).length;
   tabsEl.querySelector('[data-tab="repairs"] .t-dot').classList.toggle('hidden', !openCount);
-  const due = data.payments.find(p => p.status !== 'paid' && p.status !== 'refunded');
+  const due = (data.payments || []).find(p => p.status !== 'paid' && p.status !== 'refunded');
   tabsEl.querySelector('[data-tab="payments"] .t-dot').classList.toggle('hidden', !due);
+  const toSign = leaseDocs.some(d => d.status === 'sent' && !hasSigned(d, 'tenant'));
+  tabsEl.querySelector('[data-tab="lease"] .t-dot').classList.toggle('hidden', !toSign);
+  const toConfirm = inspections.some(i => !i.tenant_signed_at && !(i.landlord_signed_at && i.tenant_signed_at));
+  tabsEl.querySelector('[data-tab="inspection"] .t-dot').classList.toggle('hidden', !toConfirm);
   document.getElementById('t-name').textContent = data.tenant.full_name;
-  view.innerHTML = { home: homeView, payments: paymentsView, repairs: repairsView, messages: messagesView }[tab]();
+  if (tab === 'inspection' && hashParts()[1]) { openInspection(hashParts()[1]); return; }
+  view.innerHTML = { home: homeView, payments: paymentsView, repairs: repairsView, messages: messagesView,
+    lease: leaseView, inspection: inspectionsView }[tab]();
   if (tab === 'messages') {
     const list = view.querySelector('.chat');
     list.scrollTop = list.scrollHeight;
@@ -265,6 +294,71 @@ function messagesView() {
 }
 
 // ---------------------------------------------------------------------------
+// Lease: read it, sign it, bring a witness
+// ---------------------------------------------------------------------------
+function leaseView() {
+  const d = leaseDocs.find(x => x.status === 'sent') || leaseDocs.find(x => x.status === 'signed');
+  if (!d) {
+    return `<div class="t-hello"><h1>Lease</h1></div>
+      <div class="card empty"><h2>No lease to sign in the app yet</h2>
+        <p>When your landlord sends your lease through RTC Rentals, you can read and sign it here.${limited ? '' : ' Your rent, dates and deposit are on the Home tab.'}</p></div>`;
+  }
+  const mineDone = hasSigned(d, 'tenant');
+  const lead = d.status === 'signed' ? 'Signed by everyone. You can open or print it here at any time.'
+    : !mineDone ? 'Your landlord has sent this lease for you to sign. Read all of it first. If something is wrong or unclear, message your landlord before you sign.'
+    : waitingOn(d) || 'Everyone has signed.';
+  return `<div class="t-hello"><h1>Lease ${docBadge(d)}</h1><p class="muted">${esc(lead)}</p></div>
+    <div class="doc-bar no-print"><div class="doc-bar-actions">${partyActions(d, 'tenant')}${printButton}</div></div>
+    ${docHtml(d, { audit: true })}
+    ${d.status === 'sent' && !mineDone ? `<div class="doc-bar no-print" style="margin-top:14px"><div class="doc-bar-actions">${partyActions(d, 'tenant')}</div></div>` : ''}`;
+}
+
+// ---------------------------------------------------------------------------
+// Inspections: move-in and move-out checks with photos
+// ---------------------------------------------------------------------------
+function inspectionsView() {
+  return `
+    <div class="t-hello t-hello-row"><div><h1>Inspection</h1><p class="muted">Record the condition of your home, room by room with photos. You and your landlord both confirm it.</p></div>
+      <button class="btn" type="button" data-action="new-inspection">${ico.plus}Start a check</button></div>
+    ${inspections.length ? `<section class="card">${inspections.map(i => inspectionCard(i, 'tenant')).join('')}</section>`
+      : `<div class="card empty"><h2>No inspections yet</h2><p>A move-in check protects your deposit: it shows what was already marked or broken when you got the keys. Start one now, or wait for your landlord to start it.</p></div>`}`;
+}
+
+async function openInspection(id) {
+  view.innerHTML = '<div id="insp-host"><p class="muted">Loading…</p></div>';
+  window.scrollTo(0, 0);
+  const find = () => inspections.find(i => i.id === id);
+  await mountInspection(document.getElementById('insp-host'), {
+    api: docs, role: 'tenant', myName: data.tenant.full_name, back: '#inspection',
+    where: [data.unit?.label, data.property?.name].filter(Boolean).join(', '),
+    names: { landlord: data.landlord?.full_name || 'Landlord', tenant: data.tenant.full_name },
+    async load() { inspections = await docs.inspections(); return find(); },
+    async baseline() { const i = find(); return inspections.find(x => x.lease_id === i.lease_id && x.kind === 'move_in' && x.id !== i.id) || null; },
+  }).catch(ex => toast(ex.message, 'error'));
+}
+
+function newInspection() {
+  const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const kind = inspections.some(i => i.kind === 'move_in') ? 'move_out' : 'move_in';
+  openModal({
+    title: 'Start a check', submitLabel: 'Start',
+    body: `<div class="grid-2">
+        <div class="field"><label for="ni-kind">Type</label><select id="ni-kind" name="kind">
+          ${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${k === kind ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div class="field"><label for="ni-date">Date</label><input id="ni-date" name="inspected_on" type="date" value="${today}" required></div>
+      </div>
+      <p class="hint" style="margin:0">You’ll get a checklist for every room. Rate each item, and take a photo of anything marked, cracked or not working. Your landlord sees it and confirms it too.</p>`,
+    async onSubmit(form) {
+      const f = formData(form);
+      if (!f.inspected_on) throw new Error('Choose the date.');
+      const id = await docs.createInspection({ lease_id: data.lease.id, ...f, rooms: roomTemplate(data.unit) });
+      inspections = await docs.inspections();
+      location.hash = `inspection/${id}`;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 function payFlow(id) {
@@ -360,9 +454,16 @@ async function copy(text, btn) {
 view.addEventListener('click', e => {
   const c = e.target.closest('[data-copy]');
   if (c) { copy(c.dataset.copy, c); return; }
+  const da = e.target.closest('[data-doc-action]');
+  if (da) {
+    const d = leaseDocs.find(x => x.id === da.dataset.id) || leaseDocs[0];
+    runPartyAction(da.dataset.docAction, d, { role: 'tenant', api: docs, myName: data.tenant.full_name, refresh });
+    return;
+  }
   const a = e.target.closest('[data-action]');
   if (!a) return;
   const { action, id } = a.dataset;
+  if (action === 'new-inspection') newInspection();
   if (action === 'pay') payFlow(id);
   if (action === 'receipt') receipt(id);
   if (action === 'new-request') { e.preventDefault(); if (currentTab() !== 'repairs') location.hash = 'repairs'; newRequest(); }
@@ -390,6 +491,8 @@ async function refresh() {
 window.addEventListener('hashchange', () => { if (data) { render(); window.scrollTo(0, 0); } });
 await refresh();
 api.subscribe(() => {
+  // Leave an open form or a half-done inspection alone; the next action reloads anyway.
+  if (document.querySelector('.modal-backdrop') || (currentTab() === 'inspection' && hashParts()[1])) return;
   // Don't wipe a half-typed message when something else changes.
   const draft = document.getElementById('msg')?.value;
   refresh().then(() => { const ta = document.getElementById('msg'); if (ta && draft) ta.value = draft; });
