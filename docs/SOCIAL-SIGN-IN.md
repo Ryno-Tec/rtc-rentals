@@ -36,15 +36,30 @@ Before any of them: Supabase > **Authentication > URL Configuration**: Site URL
    app later); use Supabase's tool to turn the Team ID, Key ID and `.p8` into the secret. Turn it on.
 5. **Renew the Apple secret every 6 months** (Apple limits it). Put a reminder in the hub.
 
-## Microsoft (Entra ID, free)
+## Microsoft (Entra ID, free): same standard as Google
 
-1. entra.microsoft.com > **App registrations > New registration**: name RTC Rentals, account types
-   **Accounts in any organisational directory and personal Microsoft accounts**, redirect URI
-   (Web) = the Supabase callback.
-2. **Certificates & secrets**: new client secret (24 months); copy the value.
-3. Supabase > **Providers > Azure**: Application (client) ID, the secret value, Azure Tenant URL
-   left at `https://login.microsoftonline.com/common`. Turn it on.
-4. Note when the secret expires and renew it before then.
+1. entra.microsoft.com (Ryno-Tec tenant) > **App registrations > New registration**: name
+   **RTC Rentals**; account types **Accounts in any organisational directory and personal
+   Microsoft accounts**; redirect URI (Web) = the Supabase callback above.
+2. **Branding & properties** (what people see on Microsoft's consent screen, like Google's branding page):
+   logo (the RTC Rentals icon, 215×215 PNG), home page `https://rentals.ryno-tec.co.za`,
+   terms of service and privacy `https://rentals.ryno-tec.co.za/privacy.html`,
+   **publisher domain** `ryno-tec.co.za` (already verified in your M365 tenant).
+3. **Publisher verification** (the blue "verified" tick, Microsoft's equivalent of Google's
+   verified app): Branding & properties > *Add MPN ID to verify publisher*, enter Ryno-Tec's
+   Microsoft AI Cloud Partner Program **Partner ID**. Needs a work account in the same tenant.
+4. **Token configuration > Add optional claim > ID**: tick **email** and **xms_edov** (lets
+   Supabase know whether Microsoft verified the email's domain). Accept adding the Graph
+   email permission when asked.
+5. **API permissions**: Microsoft Graph delegated `openid`, `email`, `profile`, `User.Read`
+   only. No admin consent needed.
+6. **Certificates & secrets**: new client secret, 24 months; copy the **Value**.
+7. Supabase > **Authentication > Sign In / Providers > Azure**: Application (client) ID, secret
+   value, Azure Tenant URL `https://login.microsoftonline.com/common` (work, school and personal
+   accounts). Turn it on; the button appears by itself.
+8. Button artwork: download Microsoft's sign-in logo from the identity platform branding
+   guidelines and save it as `web/icons/microsoft-logo.svg`.
+9. Renew the client secret before it expires (calendar reminder; same as the Apple secret).
 
 ## How invited people are handled
 

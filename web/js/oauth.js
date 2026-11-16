@@ -6,7 +6,12 @@ import { esc } from './shell.js';
 
 const NAMES = { google: 'Google', apple: 'Apple', azure: 'Microsoft' };
 // Each provider's own mark, from the artwork it publishes for sign-in buttons (Google's is icons/google-g.png).
-const LOGOS = { google: '<img src="icons/google-g.png" alt="" width="18" height="18">' };
+// Microsoft's mark goes in icons/microsoft-logo.svg (from Microsoft's sign-in branding artwork); until
+// that file exists the button shows text only.
+const LOGOS = {
+  google: '<img src="icons/google-g.png" alt="" width="18" height="18">',
+  azure: '<img src="icons/microsoft-logo.svg" alt="" width="18" height="18" onerror="this.remove()">',
+};
 
 export async function enabledProviders() {
   if (!configured || isDemo()) return [];
@@ -22,7 +27,10 @@ export async function enabledProviders() {
 export async function signInWith(provider, redirectTo) {
   const sb = await client();
   const { error } = await sb.auth.signInWithOAuth({ provider, options: {
-    redirectTo, scopes: provider === 'azure' ? 'email openid profile' : undefined } });
+    // Supabase needs Microsoft's email claim; the app registration adds xms_edov so unverified
+    // email domains can't be used to take over someone else's account.
+    redirectTo, scopes: provider === 'azure' ? 'openid email profile' : undefined,
+    queryParams: provider === 'azure' ? { prompt: 'select_account' } : undefined } });
   if (error) throw new DataError(error.message);
 }
 
