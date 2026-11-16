@@ -38,6 +38,8 @@ Before any of them: Supabase > **Authentication > URL Configuration**: Site URL
 
 ## Microsoft (Entra ID, free): same standard as Google
 
+Quickest: `bash scripts/entra-create-app.sh` after `az login` (does steps 1, 2, 4, 5 and 6 and prints the values for step 7). The manual steps:
+
 1. entra.microsoft.com (Ryno-Tec tenant) > **App registrations > New registration**: name
    **RTC Rentals**; account types **Accounts in any organisational directory and personal
    Microsoft accounts**; redirect URI (Web) = the Supabase callback above.
