@@ -99,3 +99,18 @@ end $$;
 
 reset role;
 \echo 'All photo, expense and social sign-in tests passed'
+
+-- ---- 009: the yearly increase as a fixed amount ----
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+set role authenticated;
+update public.leases set escalation_type = 'amount', escalation_amount = 250, escalation_pct = 0
+  where tenant_id = (select id from public.tenants where full_name = 'Lerato N');
+do $$ begin
+  assert (select escalation_amount from public.leases where tenant_id = (select id from public.tenants where full_name = 'Lerato N')) = 250, 'amount saved';
+  begin update public.leases set escalation_type = 'rand'; raise exception 'expected: bad type refused';
+  exception when check_violation then null; end;
+  begin update public.leases set escalation_amount = -1; raise exception 'expected: negative refused';
+  exception when check_violation then null; end;
+end $$;
+reset role;
+\echo 'Fixed-amount increase tests passed'

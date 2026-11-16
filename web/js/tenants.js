@@ -1,7 +1,7 @@
 import { api, LEASE_STATUS } from './data.js';
 import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
 import { avatar, photoUrls } from './photo.js';
-import { currentRent, nextEscalation, monthLabel, eftReference, ordinal as ord } from './ledger.js';
+import { currentRent, nextEscalation, monthLabel, eftReference, ordinal as ord, rentFor, hasEscalation, escalationText } from './ledger.js';
 
 await mountShell('tenants.html');
 const list = document.getElementById('list');
@@ -33,7 +33,7 @@ function render() {
           <h2 class="with-avatar">${avatar(photos[t.photo_path], t.full_name, 34)}<span>${esc(t.full_name || 'Tenant')}</span> ${leaseBadge(l)}</h2>
           <div class="addr">${esc(u.label || '')}${u.property ? ' · ' + esc(u.property.name) : ''}</div>
           <div class="stats">
-            <span><b class="num">${money(currentRent(l))}</b> a month${Number(l.escalation_pct) ? ` · +${Number(l.escalation_pct)}% a year` : ''}</span>
+            <span><b class="num">${money(currentRent(l))}</b> a month${hasEscalation(l) ? ` · +${escalationText(l)}` : ''}</span>
             <span>Due on the <b class="num">${ord(l.rent_due_day)}</b></span>
             <span>Since <b>${fmtDate(l.start_date)}</b>${l.end_date ? ` · until <b>${fmtDate(l.end_date)}</b>` : ' · month to month'}</span>
           </div>
@@ -50,7 +50,7 @@ function render() {
             <th scope="row" class="hide-sm">EFT reference</th><td class="hide-sm"><code>${esc(eftReference(u.label, t.full_name))}</code></td></tr>
         <tr><th scope="row">Tenant app</th><td colspan="3">${access}
           ${t.user_id ? '' : `<button class="btn btn-sm ${inv ? 'btn-ghost' : ''}" type="button" data-action="invite" data-id="${l.id}" style="margin-left:8px">${inv ? 'New invite link' : 'Invite to the app'}</button>`}</td></tr>
-        ${esc_ && live(l) ? `<tr><th scope="row">Next increase</th><td colspan="3">${esc(monthLabel(esc_))}, to ${money(Math.round(currentRent(l) * (1 + Number(l.escalation_pct) / 100)))}</td></tr>` : ''}
+        ${esc_ && live(l) ? `<tr><th scope="row">Next increase</th><td colspan="3">${esc(monthLabel(esc_))}, to ${money(rentFor(l, esc_))}</td></tr>` : ''}
       </tbody></table></div>
     </article>`;
   }).join('');
@@ -108,19 +108,33 @@ function tenancyForm(l = {}) {
       </div>
       <div class="grid-2">
         <div class="field"><label for="l-due">Rent due on day</label><input id="l-due" name="rent_due_day" type="number" min="1" max="31" step="1" value="${l.rent_due_day ?? 1}"></div>
-        <div class="field" style="margin-bottom:0"><label for="l-esc">Yearly increase</label>
-          <div class="input-prefix"><input id="l-esc" name="escalation_pct" type="number" min="0" max="100" step="0.5" value="${l.escalation_pct ?? 0}" style="padding-right:30px"><span style="left:auto;right:12px">%</span></div>
-          <div class="hint">On each lease anniversary.</div></div>
+        <div class="field" style="margin-bottom:0"><label for="l-esc-type">Yearly increase</label>
+          <div class="esc-row">
+            <select id="l-esc-type" name="escalation_type" aria-label="Increase by">
+              <option value="percent" ${l.escalation_type !== 'amount' ? 'selected' : ''}>Percentage</option>
+              <option value="amount" ${l.escalation_type === 'amount' ? 'selected' : ''}>Fixed amount</option></select>
+            <div class="input-prefix ${l.escalation_type === 'amount' ? 'hidden' : ''}" id="l-esc-pct"><input id="l-esc" name="escalation_pct" type="number" min="0" max="100" step="0.5" value="${l.escalation_pct ?? 0}" aria-label="Increase in percent" style="padding-right:30px"><span style="left:auto;right:12px">%</span></div>
+            <div class="input-prefix ${l.escalation_type === 'amount' ? '' : 'hidden'}" id="l-esc-amt"><span>R</span><input id="l-esc-amount" name="escalation_amount" type="number" min="0" step="10" inputmode="decimal" value="${l.escalation_amount ?? 0}" aria-label="Increase in rand"></div>
+          </div>
+          <div class="hint">On each lease anniversary: a percentage of the rent, or a fixed rand amount added each year.</div></div>
       </div>`,
     async onSubmit(form) {
       const d = formData(form);
       const tenant = { id: t.id, full_name: d.full_name, phone: d.phone, email: d.email, id_number: d.id_number, employer: d.employer };
       const lease = { id: l.id, unit_id: d.unit_id, status: d.status, start_date: d.start_date, end_date: d.end_date,
-        monthly_rent: d.monthly_rent, deposit: d.deposit ?? 0, rent_due_day: d.rent_due_day ?? 1, escalation_pct: d.escalation_pct ?? 0 };
+        monthly_rent: d.monthly_rent, deposit: d.deposit ?? 0, rent_due_day: d.rent_due_day ?? 1,
+        escalation_type: d.escalation_type === 'amount' ? 'amount' : 'percent',
+        escalation_pct: d.escalation_type === 'amount' ? 0 : (d.escalation_pct ?? 0),
+        escalation_amount: d.escalation_type === 'amount' ? (d.escalation_amount ?? 0) : 0 };
       await api.saveTenancy({ tenant, lease });
       toast(l.id ? 'Tenant updated' : 'Tenant added');
       await refresh();
     },
+  });
+  const escType = document.getElementById('l-esc-type');
+  escType.addEventListener('change', () => {
+    document.getElementById('l-esc-pct').classList.toggle('hidden', escType.value === 'amount');
+    document.getElementById('l-esc-amt').classList.toggle('hidden', escType.value !== 'amount');
   });
   // Pre-fill rent and deposit from the unit when adding.
   if (!l.id) {

@@ -47,7 +47,9 @@ export function leaseDefaults({ lease, tenant, unit, property, profile, previous
     monthly_rent: lease?.monthly_rent ?? '',
     deposit: lease?.deposit ?? '',
     rent_due_day: lease?.rent_due_day ?? 1,
+    escalation_type: lease?.escalation_type === 'amount' ? 'amount' : 'percent',
     escalation_pct: lease?.escalation_pct ?? 0,
+    escalation_amount: lease?.escalation_amount ?? 0,
     bank_name: prev.bank_name || '', bank_holder: prev.bank_holder || '', bank_account: prev.bank_account || '',
     bank_branch: prev.bank_branch || '', bank_type: prev.bank_type || '',
     payment_reference: '',
@@ -80,7 +82,9 @@ export function buildLease(input) {
   const i = { ...input };
   validateLease(i);
   const fixed = Boolean(i.end_date);
-  const esc = Number(i.escalation_pct) || 0;
+  const byAmount = i.escalation_type === 'amount';
+  const esc = byAmount ? Number(i.escalation_amount) || 0 : Number(i.escalation_pct) || 0;
+  const escText = byAmount ? `${rand(esc)} a month` : `${esc}%`;
   const dueDay = Number(i.rent_due_day);
   const witnesses = Math.min(2, Math.max(0, Number(i.witnesses_per_party) || 0));
   const province = PROVINCES[i.province] || 'the province where the Premises are';
@@ -122,7 +126,7 @@ export function buildLease(input) {
       : 'Rent is paid by electronic transfer into the bank account the Landlord gives the Tenant in writing.',
     'The Landlord will give the Tenant a dated receipt for every payment, showing the amount, the month it is for and any amount still owing. Receipts and a running statement are available to both parties in the RTC Rentals app.',
     esc > 0
-      ? `The rent goes up by ${esc}% on each anniversary of the start date for as long as the Tenant stays in the Premises.`
+      ? `The rent goes up by ${escText} on each anniversary of the start date for as long as the Tenant stays in the Premises.`
       : `The rent does not go up during ${fixed ? 'the fixed period' : 'the first 12 months'}. After that the Landlord may change the rent by giving the Tenant at least two full calendar months’ written notice.`,
     lateFee > 0 && `If rent is still unpaid ${Number(i.late_fee_days) || 7} days after it was due, the Tenant will pay an administration fee of ${rand(lateFee)} for that month towards the Landlord’s reasonable cost of following up.`,
   ]);
@@ -241,7 +245,7 @@ export function buildLease(input) {
       ['Home', clean(i.premises_address)],
       ['Lease period', fixed ? `${longDate(i.start_date)} to ${longDate(i.end_date)}` : `From ${longDate(i.start_date)}, month to month`],
       ['Rent', `${rand(i.monthly_rent)} a month, due on the ${ordinal(dueDay)}`],
-      ['Yearly increase', esc > 0 ? `${esc}% on each anniversary` : 'None agreed'],
+      ['Yearly increase', esc > 0 ? `${escText} on each anniversary` : 'None agreed'],
       ['Deposit', Number(i.deposit) > 0 ? rand(i.deposit) : 'None'],
       ['Included in the rent', included.length ? list(included).replace(/^./, c => c.toUpperCase()) : 'Nothing extra'],
     ],

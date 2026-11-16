@@ -72,7 +72,7 @@ const PROPERTY_FIELDS = ['name', 'property_type', 'street_address', 'suburb', 'c
 const UNIT_FIELDS = ['property_id', 'label', 'bedrooms', 'bathrooms', 'size_m2', 'monthly_rent', 'deposit',
   'status', 'prepaid_meter_number', 'water_included', 'electricity_included', 'notes'];
 const TENANT_FIELDS = ['full_name', 'id_number', 'email', 'phone', 'employer', 'monthly_income'];
-const LEASE_FIELDS = ['unit_id', 'status', 'start_date', 'end_date', 'monthly_rent', 'deposit', 'rent_due_day', 'escalation_pct'];
+const LEASE_FIELDS = ['unit_id', 'status', 'start_date', 'end_date', 'monthly_rent', 'deposit', 'rent_due_day', 'escalation_pct', 'escalation_type', 'escalation_amount'];
 const PAYMENT_FIELDS = ['amount_due', 'amount_paid', 'status', 'method', 'paid_at', 'reference', 'notes'];
 export const LEASE_STATUS = { draft: 'Draft', sent: 'Sent to sign', signed: 'Signed', active: 'Active', ended: 'Ended', cancelled: 'Cancelled' };
 export const PAY_METHODS = { eft: 'EFT', cash: 'Cash', ozow: 'Ozow', card: 'Card', debicheck: 'DebiCheck', other: 'Other' };
@@ -86,6 +86,8 @@ function validateTenancy({ tenant, lease }) {
   if (!(Number(lease.monthly_rent) >= 0)) throw new DataError('Enter the monthly rent.');
   const d = Number(lease.rent_due_day);
   if (!(d >= 1 && d <= 31)) throw new DataError('Rent due day must be between 1 and 31.');
+  if (lease.escalation_type === 'amount' && !(Number(lease.escalation_amount) >= 0)) throw new DataError('Enter the yearly increase in rand.');
+  if (lease.escalation_type !== 'amount' && !(Number(lease.escalation_pct) >= 0 && Number(lease.escalation_pct) <= 100)) throw new DataError('The yearly increase must be between 0% and 100%.');
 }
 export const inviteLink = token => new URL('join.html?t=' + encodeURIComponent(token), location.href).href;
 const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k => [k, obj[k]]));

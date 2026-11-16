@@ -593,3 +593,5 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .tax-table th { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); background: none; width: auto; }
 .tax-table td { background: none; font-variant-numeric: tabular-nums; }
 .tax-table .tax-net th, .tax-table .tax-net td { background: var(--accent-soft); }
+.esc-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.esc-row > .hidden { display: none !important; }

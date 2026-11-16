@@ -57,6 +57,27 @@ with sync_playwright() as pw:
     page.locator("#ty").select_option(index=1)
     expect(page.locator("#ty")).not_to_have_value(str(page.evaluate("new Date().getMonth() >= 2 ? new Date().getFullYear() + 1 : new Date().getFullYear()")))
 
+    # ---- Yearly increase as a fixed rand amount
+    page.goto(f"{BASE}/tenants.html")
+    card = page.locator("article", has_text="Lerato Nkosi")
+    expect(card).to_contain_text("+6% a year")
+    card.get_by_role("button", name=re.compile("Edit")).click()
+    page.locator("#l-esc-type").select_option("amount")
+    expect(page.locator("#l-esc-amount")).to_be_visible()
+    expect(page.locator("#l-esc")).to_be_hidden()
+    page.locator("#l-esc-amount").fill("250")
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator(".modal")).to_have_count(0)
+    expect(card).to_contain_text("+R 250 a year")
+    expect(card).to_contain_text("to R 3 450")       # R 3 200 start + R 250 on the first anniversary
+    page.goto(f"{BASE}/leases.html")
+    page.locator("article", has_text="Lerato Nkosi").get_by_role("button", name="Create lease").click()
+    expect(page.locator("#lf-esct")).to_have_value("amount")
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator(".lease-doc")).to_contain_text("The rent goes up by R 250 a month on each anniversary")
+    page.goto(f"{BASE}/tenant.html#home")
+    expect(page.locator("body")).to_contain_text("R 250 a year")
+
     # ---- Owner sees the tenant's photo; changes their own
     page.goto(f"{BASE}/tenants.html")
     expect(page.locator(".with-avatar img").first).to_be_visible()

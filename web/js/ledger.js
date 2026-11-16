@@ -20,15 +20,24 @@ export const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// The yearly increase is a percentage (compounded) or a fixed rand amount added each year.
+export const isAmountIncrease = lease => lease.escalation_type === 'amount';
+export const hasEscalation = lease => isAmountIncrease(lease) ? Number(lease.escalation_amount) > 0 : Number(lease.escalation_pct) > 0;
+const randText = n => 'R ' + Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+export const escalationText = lease => !hasEscalation(lease) ? ''
+  : isAmountIncrease(lease) ? `${randText(lease.escalation_amount)} a year` : `${Number(lease.escalation_pct)}% a year`;
+
 // Rent for a month: the starting rent, raised by the escalation on each lease anniversary.
 export function rentFor(lease, month) {
   const years = Math.max(0, Math.floor(monthsBetween(monthKey(lease.start_date), month) / 12));
-  const r = Number(lease.monthly_rent) * Math.pow(1 + Number(lease.escalation_pct || 0) / 100, years);
+  const r = isAmountIncrease(lease)
+    ? Number(lease.monthly_rent) + Number(lease.escalation_amount || 0) * years
+    : Number(lease.monthly_rent) * Math.pow(1 + Number(lease.escalation_pct || 0) / 100, years);
   return Math.round(r);
 }
 export const currentRent = lease => rentFor(lease, monthKey(new Date()));
 export const nextEscalation = lease => {
-  if (!Number(lease.escalation_pct)) return null;
+  if (!hasEscalation(lease)) return null;
   const start = monthKey(lease.start_date), now = monthKey(new Date());
   const yrs = Math.floor(monthsBetween(start, now) / 12) + 1;
   return addMonths(start, yrs * 12);

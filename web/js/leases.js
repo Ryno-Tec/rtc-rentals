@@ -107,7 +107,10 @@ function leaseForm(l, doc) {
       <h3 class="form-section">Period and rent</h3>
       <div class="grid-2">${field('lf-sd', 'Starts', 'start_date', v.start_date, 'type="date" required')}${field('lf-ed', 'Ends <span class="muted">(blank = month to month)</span>', 'end_date', v.end_date, 'type="date"')}</div>
       <div class="grid-2">${field('lf-rent', 'Monthly rent (R)', 'monthly_rent', v.monthly_rent, 'type="number" min="0" step="10" required')}${field('lf-dep', 'Deposit (R)', 'deposit', v.deposit, 'type="number" min="0" step="10"')}</div>
-      <div class="grid-2">${field('lf-due', 'Rent due on day', 'rent_due_day', v.rent_due_day, 'type="number" min="1" max="31" step="1"')}${field('lf-esc', 'Yearly increase (%)', 'escalation_pct', v.escalation_pct, 'type="number" min="0" max="100" step="0.5"')}</div>
+      <div class="grid-2">${field('lf-due', 'Rent due on day', 'rent_due_day', v.rent_due_day, 'type="number" min="1" max="31" step="1"')}<div class="field"><label for="lf-esct">Yearly increase</label><div class="esc-row">
+          <select id="lf-esct" name="escalation_type" aria-label="Increase by"><option value="percent" ${v.escalation_type !== 'amount' ? 'selected' : ''}>Percentage</option><option value="amount" ${v.escalation_type === 'amount' ? 'selected' : ''}>Fixed amount (R)</option></select>
+          <input id="lf-esc" name="escalation_pct" type="number" min="0" max="100" step="0.5" value="${esc(v.escalation_pct ?? 0)}" aria-label="Increase in percent" class="${v.escalation_type === 'amount' ? 'hidden' : ''}">
+          <input id="lf-esca" name="escalation_amount" type="number" min="0" step="10" value="${esc(v.escalation_amount ?? 0)}" aria-label="Increase in rand" class="${v.escalation_type === 'amount' ? '' : 'hidden'}"></div></div></div>
       <div class="grid-2">${field('lf-lf', 'Late payment fee (R) <span class="muted">(optional)</span>', 'late_fee', v.late_fee, 'type="number" min="0" step="10"')}${field('lf-ld', 'Charged after how many days', 'late_fee_days', v.late_fee_days, 'type="number" min="1" max="31" step="1"')}</div>
       <h3 class="form-section">Where rent is paid</h3>
       <div class="grid-2">${field('lf-bn', 'Bank', 'bank_name', v.bank_name)}${field('lf-bh', 'Account holder', 'bank_holder', v.bank_holder)}</div>
@@ -125,12 +128,18 @@ function leaseForm(l, doc) {
         <div class="hint">Witnesses can sign on your phone or through a secure link, without an account.</div></div>`,
     async onSubmit(form) {
       const input = formData(form);
+      if (input.escalation_type === 'amount') input.escalation_pct = 0; else input.escalation_amount = 0;
       input.witnesses_per_party = Number(input.witnesses_per_party) || 0;
       const id = await docs.saveLeaseDoc({ id: doc?.id, lease_id: l.id, body: buildLease(input) });
       toast(doc ? 'Draft saved' : 'Draft created. Read it through, then send it.');
       await refresh();
       location.hash = `d-${id}`;
     },
+  });
+  const t = document.getElementById('lf-esct');
+  t.addEventListener('change', () => {
+    document.getElementById('lf-esc').classList.toggle('hidden', t.value === 'amount');
+    document.getElementById('lf-esca').classList.toggle('hidden', t.value !== 'amount');
   });
 }
 

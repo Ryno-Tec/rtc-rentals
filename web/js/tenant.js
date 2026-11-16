@@ -6,6 +6,7 @@ import { avatar, photoUrls, requirePhoto, changePhoto } from './photo.js';
 import { docsApi, KINDS, roomTemplate } from './docs-data.js';
 import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton, hasSigned, printPage } from './lease-ui.js';
 import { taxYearOf, inYear, taxYearLabel } from './tax-data.js';
+import { currentRent, hasEscalation, escalationText, nextEscalation, monthLabel } from './ledger.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
 
 const ico = {
@@ -187,9 +188,9 @@ function homeView() {
         <h2 id="lease-h">Your lease</h2>
         <dl class="kv">
           <div><dt>Term</dt><dd>${MONTHS[start.getMonth()].slice(0, 3)} ${start.getFullYear()} – ${end ? `${MONTHS[end.getMonth()].slice(0, 3)} ${end.getFullYear()}` : 'month to month'}${monthsLeft != null ? ` <span class="muted">(${monthsLeft} months left)</span>` : ''}</dd></div>
-          <div><dt>Monthly rent</dt><dd><span class="num">${money(lease.monthly_rent)}</span>, due on the ${ordinal(lease.rent_due_day)}</dd></div>
+          <div><dt>Monthly rent</dt><dd><span class="num">${money(currentRent(lease))}</span>, due on the ${ordinal(lease.rent_due_day)}</dd></div>
           <div><dt>Deposit held</dt><dd><span class="num">${money(lease.deposit)}</span> <span class="muted">in an interest-bearing account</span></dd></div>
-          ${Number(lease.escalation_pct) ? `<div><dt>Increase at renewal</dt><dd>${Number(lease.escalation_pct)}%</dd></div>` : ''}
+          ${hasEscalation(lease) ? `<div><dt>Yearly increase</dt><dd>${esc(escalationText(lease))}${nextEscalation(lease) ? `, next on ${esc(monthLabel(nextEscalation(lease)))}` : ''}</dd></div>` : ''}
           <div><dt>Signed</dt><dd>${lease.signed_at ? shortDate(new Date(lease.signed_at)) : '<span class="muted">Waiting for signatures</span>'}</dd></div>
         </dl>
       </section>
