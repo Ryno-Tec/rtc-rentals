@@ -58,7 +58,7 @@ az rest --method PATCH --url "$G/applications/$OBJ_ID" --headers "Content-Type=a
 # (Graph delegated: openid, email, profile, User.Read; no admin consent needed.)
 
 echo "Logo…"
-LOGO=$(mktemp -t rtc-logo).png
+LOGO="$(mktemp "${TMPDIR:-/tmp}/rtc-logo.XXXXXX")"
 curl -fsSL "$SITE/icons/entra-logo-215.png" -o "$LOGO"
 az rest --method PUT --url "$G/applications/$OBJ_ID/logo" --headers "Content-Type=image/png" --body "@$LOGO" >/dev/null \
   || echo "  (logo upload skipped; add it under Branding & properties)"
