@@ -59,6 +59,38 @@ with sync_playwright() as pw:
     expect(page.locator(".modal")).to_have_count(0)
     expect(page.locator(".t-table")).to_contain_text("Paid")
 
+    # Change plan: upgrade to Pro, then back to Growth
+    page.get_by_role("button", name="Change plan").click()
+    page.locator(".plan-opt input[value=pro]").check()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator(".modal")).to_have_count(0)
+    expect(page.locator("#plan-h").locator("..")).to_contain_text("Pro")
+    page.get_by_role("button", name="Change plan").click()
+    expect(page.locator(".plan-opt input[value=agency]")).to_be_disabled()
+    page.locator(".plan-opt input[value=growth]").check()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator(".modal")).to_have_count(0)
+    expect(page.locator("#plan-h").locator("..")).to_contain_text("Growth")
+    page.screenshot(path=str(SHOTS / "billing-plan.png"), full_page=True)
+
+    # Remove a tenant: one with paid rent goes to Past tenants
+    page.goto(f"{BASE}/tenants.html")
+    first = page.locator("article.card.prop").first
+    name = first.locator("h2 span").first.inner_text()
+    before = page.locator("article.card.prop").count()
+    first.locator("[data-action=remove]").click()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator("article.card.prop")).to_have_count(before - 1)
+    expect(page.locator(".past-tenants summary")).to_contain_text("Past tenants")
+    page.locator(".past-tenants summary").click()
+    expect(page.locator(".past-tenants")).to_contain_text(name)
+    page.screenshot(path=str(SHOTS / "tenants-past.png"), full_page=True)
+
+    # Admin is live-only and hidden from owners in the demo
+    expect(page.locator(".nav")).not_to_contain_text("Admin dashboard")
+    page.goto(f"{BASE}/admin.html")
+    expect(page.locator("#view")).to_contain_text("live system only")
+
     # Help guide covers it
     page.goto(f"{BASE}/help.html")
     expect(page.locator("#owners")).to_contain_text("Let tenants pay rent online")

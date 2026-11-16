@@ -1,5 +1,5 @@
 import { api, LEASE_STATUS } from './data.js';
-import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
+import { mountShell, esc, money, icon, toast, openModal, formData, confirmDialog } from './shell.js';
 import { avatar, photoUrls } from './photo.js';
 import { currentRent, nextEscalation, monthLabel, eftReference, ordinal as ord, rentFor, hasEscalation, escalationText } from './ledger.js';
 
@@ -14,10 +14,22 @@ const live = l => ['active', 'signed'].includes(l.status);
 const leaseBadge = l => `<span class="badge ${live(l) ? 's-occupied' : l.status === 'ended' || l.status === 'cancelled' ? 'plain tag' : 's-notice'}">${esc(LEASE_STATUS[l.status])}</span>`;
 
 function render() {
+  const all = tenancies;
+  const past = all.filter(l => l.tenant?.archived_at);
+  const tenancies_ = all.filter(l => !l.tenant?.archived_at);
+  const pastHtml = past.length ? `<details class="card past-tenants"><summary>Past tenants (${new Set(past.map(l => l.tenant.id)).size})</summary>
+    <div class="table-wrap"><table class="t-table"><thead><tr><th>Tenant</th><th>Unit</th><th class="hide-sm">Lived there</th><th></th></tr></thead><tbody>
+    ${past.map(l => `<tr><td>${esc(l.tenant.full_name)}</td><td>${esc(l.unit?.label || '')}${l.unit?.property ? ' · ' + esc(l.unit.property.name) : ''}</td>
+      <td class="hide-sm">${fmtDate(l.start_date)} – ${fmtDate(l.end_date)}</td><td class="actions"><a class="btn btn-ghost btn-sm" href="rent.html#l-${l.id}">Rent history</a></td></tr>`).join('')}
+    </tbody></table></div><p class="hint card-pad" style="margin:0">Their rent history stays for your records and tax reports. They no longer have access to the app.</p></details>` : '';
+  renderActive(tenancies_, pastHtml);
+}
+
+function renderActive(tenancies, pastHtml) {
   if (!tenancies.length) {
     list.innerHTML = `<div class="card empty"><h2>No tenants yet</h2>
       <p>Add your tenant and the terms of their lease. If they’ve rented from you for a while, use the date the lease started; you can mark earlier months as paid on the Rent page.</p>
-      <button class="btn" type="button" data-action="add">${icon.plus}Add tenant</button></div>`;
+      <button class="btn" type="button" data-action="add">${icon.plus}Add tenant</button></div>${pastHtml}`;
     return;
   }
   const rows = tenancies.map(l => {
@@ -41,6 +53,7 @@ function render() {
         <div class="prop-actions">
           <a class="btn btn-sm btn-ghost" href="rent.html#l-${l.id}">${icon.cash}Rent</a>
           <button class="btn btn-ghost btn-icon" type="button" data-action="edit" data-id="${l.id}" aria-label="Edit ${esc(t.full_name)}">${icon.edit}</button>
+          <button class="btn btn-ghost btn-icon" type="button" data-action="remove" data-id="${l.id}" aria-label="Remove ${esc(t.full_name)}">${icon.trash}</button>
         </div>
       </div>
       <div class="table-wrap"><table><tbody>
@@ -54,7 +67,20 @@ function render() {
       </tbody></table></div>
     </article>`;
   }).join('');
-  list.innerHTML = rows;
+  list.innerHTML = rows + pastHtml;
+}
+
+async function removeTenant(l) {
+  const t = l.tenant;
+  const ok = await confirmDialog(`Remove ${t.full_name}?`,
+    `If ${t.full_name} was added by mistake (no rent paid, nothing signed), they are deleted. Otherwise the lease ends today, their app access stops and they move to Past tenants. Their rent history is kept for your records and SARS.`,
+    'Remove tenant');
+  if (!ok) return;
+  try {
+    const r = await api.removeTenant(t.id);
+    toast(r === 'deleted' ? `${t.full_name} deleted` : `${t.full_name} moved to Past tenants`);
+    await refresh();
+  } catch (ex) { toast(ex.message, 'error'); }
 }
 
 async function refresh() {
@@ -185,6 +211,7 @@ list.addEventListener('click', e => {
   if (b.dataset.action === 'add') tenancyForm();
   if (b.dataset.action === 'edit') tenancyForm(tenancies.find(l => l.id === b.dataset.id));
   if (b.dataset.action === 'invite') invite(tenancies.find(l => l.id === b.dataset.id), b);
+  if (b.dataset.action === 'remove') removeTenant(tenancies.find(l => l.id === b.dataset.id));
 });
 
 await refresh();

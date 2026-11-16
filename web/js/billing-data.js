@@ -11,16 +11,21 @@ const check = r => { if (r.error) throw new DataError(r.error.message); return r
 const live = {
   async overview() {
     const sb = await client();
-    const [me, ozow, settings, fees, invoices] = await Promise.all([
-      sb.from('landlords').select('tier').single(),
+    const [me, ozow, settings, fees, invoices, units, props] = await Promise.all([
+      sb.from('landlords').select('tier, custom_price').single(),
       sb.from('ozow_accounts').select('site_code, is_test, enabled, key_hint, updated_at').maybeSingle(),
       sb.from('platform_settings').select('*').maybeSingle(),
       sb.from('platform_fees').select('*').is('invoice_id', null).order('created_at', { ascending: false }),
       sb.from('platform_invoices').select('*').order('period_month', { ascending: false }),
+      sb.from('units').select('id', { count: 'exact', head: true }),
+      sb.from('properties').select('id', { count: 'exact', head: true }),
     ]);
-    const tier = check(me).tier;
-    return { tier, plan: TIERS[tier], ozow: check(ozow), settings: check(settings) || FEE_DEFAULTS, fees: check(fees), invoices: check(invoices) };
+    const { tier, custom_price } = check(me);
+    return { tier, plan: { ...TIERS[tier], price_zar: TIERS[tier].price_zar ?? custom_price ?? null }, ozow: check(ozow),
+      settings: check(settings) || FEE_DEFAULTS, fees: check(fees), invoices: check(invoices),
+      usage: { units: units.count ?? 0, properties: props.count ?? 0 } };
   },
+  async changePlan(tier) { const sb = await client(); check(await sb.rpc('change_my_plan', { p_tier: tier })); },
   async saveOzow(v) {
     const sb = await client();
     check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_client_id: v.client_id || '', p_client_secret: v.client_secret || '',
@@ -49,7 +54,19 @@ function billing(s) {
 const demo = {
   async overview() {
     const s = load(), b = billing(s); save(s);
-    return { tier: s.profile.tier, plan: TIERS[s.profile.tier], ozow: b.ozow, settings: FEE_DEFAULTS, fees: b.fees, invoices: b.invoices };
+    return { tier: s.profile.tier, plan: TIERS[s.profile.tier], ozow: b.ozow, settings: FEE_DEFAULTS, fees: b.fees, invoices: b.invoices,
+      usage: { units: s.units.length, properties: s.properties.length } };
+  },
+  async changePlan(tier) {
+    const s = load(), b = billing(s), from = TIERS[s.profile.tier], to = TIERS[tier];
+    if (!to.price_zar) throw new DataError('The Agency plan is set up with Ryno-Tec. Email rentals@ryno-tec.co.za.');
+    if (to.price_zar < from.price_zar) {
+      if (b.invoices.some(i => i.status === 'open' && i.due_date < new Date().toISOString().slice(0, 10)))
+        throw new DataError('Please pay your overdue invoice before moving to a smaller plan.');
+      if (s.units.length > to.max_units) throw new DataError(`The ${to.display_name} plan allows ${to.max_units} units and you have ${s.units.length}. Remove some units first.`);
+      if (s.properties.length > to.max_properties) throw new DataError(`The ${to.display_name} plan allows ${to.max_properties} properties and you have ${s.properties.length}. Remove some first.`);
+    }
+    s.profile.tier = tier; save(s); emit();
   },
   async saveOzow(v) {
     const s = load(), b = billing(s);

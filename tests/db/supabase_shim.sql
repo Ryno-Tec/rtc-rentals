@@ -8,7 +8,8 @@ create schema auth;
 create table auth.users (
   id uuid primary key,
   email text,
-  raw_user_meta_data jsonb default '{}'
+  raw_user_meta_data jsonb default '{}',
+  last_sign_in_at timestamptz   -- as in Supabase
 );
 
 create function auth.uid() returns uuid language sql stable as $$

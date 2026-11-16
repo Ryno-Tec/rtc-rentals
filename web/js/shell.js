@@ -51,6 +51,7 @@ const SOON = [];
 
 // Renders the sidebar around #content and returns the signed-in profile.
 export async function mountShell(active) {
+  // (admin link: shown only to Ryno-Tec platform admins; the database enforces it too)
   const session = await api.session();
   if (!session) { location.replace('index.html'); return new Promise(() => {}); }
   if (session.role === 'tenant') { location.replace('tenant.html'); return new Promise(() => {}); }
@@ -60,6 +61,7 @@ export async function mountShell(active) {
   if (dual && roles.side !== 'owner') await api.setSide('owner');
   await appLock(session, async () => { if (isDemo()) leaveDemo(); else await api.signOut(); });
   const profile = await api.profile().catch(() => ({ full_name: session.name, email: session.email, limits: null }));
+  const admin = isDemo() ? false : await api.isPlatformAdmin().catch(() => false);
 
   const content = document.getElementById('content');
   const shell = document.createElement('div');
@@ -69,6 +71,7 @@ export async function mountShell(active) {
       ${brand()}
       <nav class="nav">
         ${NAV.map(n => `<a href="${n.href}" ${n.href === active ? 'aria-current="page"' : ''}>${icon[n.icon]}${n.label}</a>`).join('')}
+        ${admin ? `<div class="nav-label">Ryno-Tec</div><a href="admin.html" ${active === 'admin.html' ? 'aria-current="page"' : ''}>${icon.building}Admin dashboard</a>` : ''}
         ${SOON.length ? `<div class="nav-label">Coming soon</div>${SOON.map(n => `<span class="soon">${icon[n.icon]}${n.label}<em>Soon</em></span>`).join('')}` : ''}
       </nav>
       <div class="sidebar-foot">

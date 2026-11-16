@@ -1,5 +1,5 @@
 // Owner: switch on online rent (their own Ozow account), and see / pay Ryno-Tec's invoices.
-import { isDemo } from './data.js';
+import { isDemo, TIERS } from './data.js';
 import { billingApi as api, feeFor } from './billing-data.js';
 import { mountShell, esc, icon, toast, openModal, formData, confirmDialog } from './shell.js';
 import { ozowReturn, checkOzow, OZOW_RESULT } from './ozow-client.js';
@@ -52,12 +52,13 @@ function planCard() {
       <div class="card-pad">
         <dl class="kv">
           <div><dt>Subscription</dt><dd>${plan.price_zar == null ? 'Custom pricing' : `${rand(plan.price_zar)} a month`}</dd></div>
-          <div><dt>Units included</dt><dd>${plan.max_units == null ? 'By agreement' : `Up to ${plan.max_units}`}</dd></div>
+          <div><dt>Units included</dt><dd>${plan.max_units == null ? 'By agreement' : `Up to ${plan.max_units}`} <span class="muted">· you use ${d.usage.units}</span></dd></div>
           <div><dt>Online rent fee</dt><dd>${pct(s.collection_fee_pct)} of each rent paid in the app, at most ${rand(s.collection_fee_max)} a payment
             <div class="muted" style="font-size:12.5px">e.g. ${rand(5000)} rent → ${rand(feeFor(5000, s))}; ${rand(20000)} rent → ${rand(feeFor(20000, s))}. EFT and cash payments are free.</div></dd></div>
           <div><dt>Fees so far</dt><dd id="unbilled">${rand(unbilled)} <span class="muted">on ${d.fees.length} ${d.fees.length === 1 ? 'payment' : 'payments'}, billed on your next invoice</span></dd></div>
         </dl>
-        <p class="hint" style="margin:14px 0 0">To change plan, email <a href="mailto:rentals@ryno-tec.co.za">rentals@ryno-tec.co.za</a>.</p>
+        ${plan.price_zar != null && d.tier !== 'agency' ? `<button class="btn" type="button" data-action="plan" style="margin-top:14px">Change plan</button>`
+          : `<p class="hint" style="margin:14px 0 0">Your plan is managed by Ryno-Tec. Email <a href="mailto:rentals@ryno-tec.co.za">rentals@ryno-tec.co.za</a> to change it.</p>`}
       </div>
     </section>`;
 }
@@ -95,6 +96,35 @@ async function refresh() {
   catch (ex) { view.innerHTML = `<div class="card card-pad"><p class="muted">${esc(ex.message)}</p></div>`; }
 }
 
+function planForm() {
+  const cur = TIERS[d.tier];
+  const opts = Object.entries(TIERS).map(([k, t]) => {
+    const custom = t.price_zar == null, here = k === d.tier;
+    const tooSmall = !custom && t.max_units != null && (d.usage.units > t.max_units || d.usage.properties > t.max_properties);
+    return `<label class="plan-opt ${here ? 'is-current' : ''} ${tooSmall || custom ? 'is-off' : ''}">
+      <input type="radio" name="tier" value="${k}" ${here ? 'checked' : ''} ${tooSmall || custom ? 'disabled' : ''}>
+      <span class="plan-name">${esc(t.display_name)}${here ? ' <span class="pill pill-info">Current</span>' : ''}</span>
+      <span class="plan-price">${custom ? 'Custom' : `${rand(t.price_zar)}/month`}</span>
+      <span class="plan-limit muted">${custom ? 'Email rentals@ryno-tec.co.za' : `Up to ${t.max_units} units, ${t.max_properties} properties`}${tooSmall ? ' · too small for your units' : ''}</span>
+    </label>`;
+  }).join('');
+  openModal({
+    title: 'Change plan', submitLabel: 'Change plan',
+    body: `<div class="plan-opts">${opts}</div>
+      <ul class="hint" style="margin:14px 0 0;padding-left:18px;line-height:1.55">
+        <li>Upgrades work straight away.</li>
+        <li>Each month is billed at the highest plan you had during it, so a change mid-month never lowers that month’s invoice.</li>
+        <li>Moving to a smaller plan needs your units to fit it and no overdue invoice.</li></ul>`,
+    async onSubmit(form) {
+      const tier = form.querySelector('input[name=tier]:checked')?.value;
+      if (!tier || tier === d.tier) return;
+      await api.changePlan(tier);
+      toast(`You’re now on ${TIERS[tier].display_name}${TIERS[tier].price_zar > cur.price_zar ? '' : ' from today'}`);
+      await refresh();
+    },
+  });
+}
+
 function connectForm() {
   const o = d.ozow;
   openModal({
@@ -122,6 +152,7 @@ view.addEventListener('click', async e => {
   const { action, id } = a.dataset;
   try {
     if (action === 'ozow') connectForm();
+    if (action === 'plan') planForm();
     if (action === 'toggle') {
       await api.saveOzow({ site_code: d.ozow.site_code, is_test: d.ozow.is_test, enabled: !d.ozow.enabled });
       toast(d.ozow.enabled ? 'Online payments switched off' : 'Online payments switched on'); await refresh();

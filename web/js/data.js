@@ -200,6 +200,12 @@ const live = {
       await sb.from('units').update({ status: 'occupied' }).eq('id', lrow.unit_id).eq('status', 'vacant');
     return l.data;
   },
+  async removeTenant(tenantId) {
+    const sb = await client();
+    const { data, error } = await sb.rpc('remove_tenant', { p_tenant: tenantId });
+    if (error) throw new DataError(error.message);
+    return data;                                    // 'deleted' or 'archived'
+  },
   // ---- Tenant invites ----
   async invites() {
     const sb = await client();
@@ -239,6 +245,11 @@ const live = {
     if (!roles?.owner && user?.user_metadata?.role !== 'tenant') { await sb.auth.updateUser({ data: { role: 'tenant' } }); await sb.auth.refreshSession(); }
   },
   // Owner, tenant or both; `side` is set only for people who are both.
+  async isPlatformAdmin() {
+    const sb = await client();
+    const { data, error } = await sb.rpc('is_platform_admin');
+    return !error && data === true;
+  },
   async roles() {
     const sb = await client();
     const { data, error } = await sb.rpc('my_roles');
@@ -499,6 +510,32 @@ const demo = {
     save(s); emit();
     return l;
   },
+  async removeTenant(tenantId) {
+    const s = load();
+    const t = (s.tenants || []).find(x => x.id === tenantId);
+    if (!t) throw new DataError('Tenant not found');
+    const leaseIds = (s.leases || []).filter(l => l.tenant_id === tenantId).map(l => l.id);
+    const history = (s.payments || []).some(p => leaseIds.includes(p.lease_id) && Number(p.amount_paid) > 0);
+    const freeUnits = () => { for (const u of s.units) if (u.status === 'occupied' && !s.leases.some(l => l.unit_id === u.id && ['active', 'signed'].includes(l.status))) u.status = 'vacant'; };
+    let out;
+    if (!history) {
+      s.payments = (s.payments || []).filter(p => !leaseIds.includes(p.lease_id));
+      s.leases = s.leases.filter(l => l.tenant_id !== tenantId);
+      s.tenants = s.tenants.filter(x => x.id !== tenantId);
+      out = 'deleted';
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      for (const l of s.leases) if (l.tenant_id === tenantId && ['draft', 'sent', 'signed', 'active'].includes(l.status)) {
+        if (['signed', 'active'].includes(l.status)) { l.status = 'ended'; l.end_date = !l.end_date || l.end_date > today ? today : l.end_date; }
+        else l.status = 'cancelled';
+      }
+      Object.assign(t, { archived_at: new Date().toISOString(), user_id: null });
+      out = 'archived';
+    }
+    s.invites = (s.invites || []).filter(i => i.tenant_id !== tenantId);
+    freeUnits(); save(s); emit();
+    return out;
+  },
   async invites() { return load().invites || []; },
   async createInvite(tenantId) {
     const s = load();
@@ -510,6 +547,7 @@ const demo = {
   },
   async invitePreview() { return null; },
   async roles() { return null; },
+  async isPlatformAdmin() { return false; },
   async setSide() {},
   async tenantSignUp() { throw new DataError('Accounts are switched off in the demo.'); },
   async acceptInvite() { throw new DataError('Accounts are switched off in the demo.'); },
