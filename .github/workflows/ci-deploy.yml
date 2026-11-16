@@ -70,14 +70,16 @@ jobs:
           fi
           REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
           echo "Project: $REF"
-          # Ryno-Tec's own Ozow account (for invoices) and where tenants come back to.
-          ARGS="SITE_URL=https://rentals.ryno-tec.co.za"
-          [ -n "$RTC_OZOW_SITE_CODE" ] && ARGS="$ARGS RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE"
-          [ -n "$RTC_OZOW_PRIVATE_KEY" ] && ARGS="$ARGS RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY"
-          ARGS="$ARGS RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-true}"
-          npx -y supabase@latest secrets set --yes --project-ref "$REF" $ARGS
           npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
           npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
+          # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
+          # rentals.ryno-tec.co.za and test mode stays on unless RTC_OZOW_IS_TEST is "false".
+          if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_PRIVATE_KEY" ]; then
+            npx -y supabase@latest secrets set --yes --project-ref "$REF" \
+              "RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-true}"
+          else
+            echo "::notice::Ryno-Tec Ozow secrets not set yet; invoices can be paid by EFT until then."
+          fi
 
   deploy:
     needs: test
