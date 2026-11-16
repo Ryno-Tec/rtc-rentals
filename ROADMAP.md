@@ -7,6 +7,7 @@ experiences (owner and tenant), enforced by row-level security.
 - Owner side: properties, units, tenants and leases, rent ledger, receipts and statements.
 - Tenant side: rent due, payment history, repairs, messages, lease and home details.
 - Owner/tenant separation on the same database (tenants only ever see their own lease).
+- Tenant invites: the owner sends a one-time registration link; the tenant registers and their lease loads.
 - Installable app (PWA) for Android, iPhone/iPad and Huawei; light Ryno-Tec theme.
 
 ## Next: tenant onboarding (requested 16 Nov 2026)

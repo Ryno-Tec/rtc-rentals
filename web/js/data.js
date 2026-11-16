@@ -87,6 +87,7 @@ function validateTenancy({ tenant, lease }) {
   const d = Number(lease.rent_due_day);
   if (!(d >= 1 && d <= 31)) throw new DataError('Rent due day must be between 1 and 31.');
 }
+export const inviteLink = token => new URL('join.html?t=' + encodeURIComponent(token), location.href).href;
 const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k => [k, obj[k]]));
 
 // ============================================================================
@@ -196,6 +197,39 @@ const live = {
     if (['active', 'signed'].includes(lrow.status))
       await sb.from('units').update({ status: 'occupied' }).eq('id', lrow.unit_id).eq('status', 'vacant');
     return l.data;
+  },
+  // ---- Tenant invites ----
+  async invites() {
+    const sb = await client();
+    const { data, error } = await sb.from('tenant_invites').select('tenant_id, expires_at, accepted_at, created_at');
+    if (error) throw friendly(error);
+    return data;
+  },
+  async createInvite(tenantId) {
+    const sb = await client();
+    const { data, error } = await sb.rpc('create_tenant_invite', { p_tenant: tenantId });
+    if (error) throw new DataError(error.message);
+    return inviteLink(data);
+  },
+  async invitePreview(token) {
+    const sb = await client();
+    const { data, error } = await sb.rpc('invite_preview', { p_token: token });
+    if (error) throw new DataError(error.message);
+    return data?.[0] || null;
+  },
+  async tenantSignUp(email, password, fullName, token) {
+    const sb = await client();
+    const { data, error } = await sb.auth.signUp({ email, password,
+      options: { data: { full_name: fullName, role: 'tenant' }, emailRedirectTo: inviteLink(token) } });
+    if (error) throw new DataError(error.message);
+    // Supabase answers a sign-up for an existing email with a user that has no identities.
+    if (data.user && !data.user.identities?.length) throw new DataError('That email already has an account. Sign in instead.');
+    return { needsConfirmation: !data.session };
+  },
+  async acceptInvite(token) {
+    const sb = await client();
+    const { error } = await sb.rpc('accept_tenant_invite', { p_token: token });
+    if (error) throw new DataError(error.message);
   },
   async payments(leaseIds) {
     if (!leaseIds.length) return [];
@@ -428,6 +462,18 @@ const demo = {
     save(s); emit();
     return l;
   },
+  async invites() { return load().invites || []; },
+  async createInvite(tenantId) {
+    const s = load();
+    s.invites = (s.invites || []).filter(i => i.tenant_id !== tenantId);
+    s.invites.push({ tenant_id: tenantId, created_at: new Date().toISOString(), accepted_at: null,
+      expires_at: new Date(Date.now() + 14 * 864e5).toISOString() });
+    save(s); emit();
+    return inviteLink('demo');
+  },
+  async invitePreview() { return null; },
+  async tenantSignUp() { throw new DataError('Accounts are switched off in the demo.'); },
+  async acceptInvite() { throw new DataError('Accounts are switched off in the demo.'); },
   async payments(leaseIds) {
     const s = load();
     return (s.payments || []).filter(p => leaseIds.includes(p.lease_id))

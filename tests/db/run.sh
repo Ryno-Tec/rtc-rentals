@@ -17,3 +17,4 @@ PSQL=("$PGBIN/psql" -h "$DATA" -p "$PORT" -U postgres -d postgres -v ON_ERROR_ST
 for m in "$ROOT"/supabase/migrations/*.sql; do "${PSQL[@]}" -f "$m"; done
 "${PSQL[@]}" -f "$ROOT/tests/db/test_schema.sql"
 "${PSQL[@]}" -f "$ROOT/tests/db/test_tenant.sql"
+"${PSQL[@]}" -f "$ROOT/tests/db/test_invites.sql"

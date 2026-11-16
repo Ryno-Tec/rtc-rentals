@@ -6,7 +6,7 @@ await mountShell('tenants.html');
 const list = document.getElementById('list');
 document.getElementById('add-tenancy').innerHTML = `${icon.plus}Add tenant`;
 
-let tenancies = [], properties = [];
+let tenancies = [], properties = [], invites = [];
 const fmtDate = d => d ? new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const live = l => ['active', 'signed'].includes(l.status);
 const leaseBadge = l => `<span class="badge ${live(l) ? 's-occupied' : l.status === 'ended' || l.status === 'cancelled' ? 'plain tag' : 's-notice'}">${esc(LEASE_STATUS[l.status])}</span>`;
@@ -21,6 +21,10 @@ function render() {
   const rows = tenancies.map(l => {
     const t = l.tenant || {}, u = l.unit || {};
     const esc_ = nextEscalation(l);
+    const inv = invites.find(i => i.tenant_id === t.id && !i.accepted_at);
+    const access = t.user_id ? '<span class="badge s-occupied">Uses the app</span>'
+      : inv ? (new Date(inv.expires_at) > new Date() ? `<span class="badge s-notice">Invited ${fmtDate(inv.created_at)}</span>` : '<span class="badge s-vacant">Invite expired</span>')
+      : '<span class="badge plain tag">Not invited</span>';
     return `<article class="card prop">
       <div class="prop-head">
         <div class="meta">
@@ -42,6 +46,8 @@ function render() {
             <th scope="row" class="hide-sm">Email</th><td class="hide-sm">${t.email ? `<a href="mailto:${esc(t.email)}">${esc(t.email)}</a>` : '<span class="muted">—</span>'}</td></tr>
         <tr><th scope="row">Deposit held</th><td class="num">${money(l.deposit)}</td>
             <th scope="row" class="hide-sm">EFT reference</th><td class="hide-sm"><code>${esc(eftReference(u.label, t.full_name))}</code></td></tr>
+        <tr><th scope="row">Tenant app</th><td colspan="3">${access}
+          ${t.user_id ? '' : `<button class="btn btn-sm ${inv ? 'btn-ghost' : ''}" type="button" data-action="invite" data-id="${l.id}" style="margin-left:8px">${inv ? 'New invite link' : 'Invite to the app'}</button>`}</td></tr>
         ${esc_ && live(l) ? `<tr><th scope="row">Next increase</th><td colspan="3">${esc(monthLabel(esc_))}, to ${money(Math.round(currentRent(l) * (1 + Number(l.escalation_pct) / 100)))}</td></tr>` : ''}
       </tbody></table></div>
     </article>`;
@@ -50,7 +56,7 @@ function render() {
 }
 
 async function refresh() {
-  try { [tenancies, properties] = await Promise.all([api.tenancies(), api.properties()]); render(); }
+  try { [tenancies, properties, invites] = await Promise.all([api.tenancies(), api.properties(), api.invites().catch(() => [])]); render(); }
   catch (e) { list.innerHTML = `<div class="form-error">Couldn’t load tenants: ${esc(e.message)}</div>`; }
 }
 
@@ -123,12 +129,44 @@ function tenancyForm(l = {}) {
   }
 }
 
+// The owner's registration request: a one-time link the tenant opens to register.
+// The link is shown once (only its fingerprint is stored), so the owner sends it straight away.
+async function invite(l, btn) {
+  const t = l.tenant || {};
+  btn.disabled = true;
+  let link;
+  try { link = await api.createInvite(t.id); }
+  catch (e) { toast(e.message, 'error'); btn.disabled = false; return; }
+  await refresh();
+  const first = (t.full_name || '').trim().split(/\s+/)[0] || 'there';
+  const msg = `Hi ${first}, please register on RTC Rentals to see your lease, rent and receipts, and to log repairs for ${l.unit?.label || 'your home'}. Open this link to set up your account (valid for 14 days): ${link}`;
+  const wa = (t.phone || '').replace(/\D/g, '').replace(/^0/, '27');
+  openModal({
+    title: `Invite ${t.full_name || 'tenant'}`,
+    submitLabel: 'Done',
+    body: `
+      <p class="muted" style="margin-top:0">Send this link to your tenant. They register with it and their lease appears in their app. It works once, for 14 days, and is only shown now.</p>
+      <div class="field"><label for="inv-link">Invite link</label><input id="inv-link" readonly value="${esc(link)}"></div>
+      <div class="row-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" type="button" id="inv-copy">Copy link</button>
+        <a class="btn btn-ghost" target="_blank" rel="noopener" href="https://wa.me/${esc(wa)}?text=${encodeURIComponent(msg)}">Send on WhatsApp</a>
+        <a class="btn btn-ghost" href="mailto:${esc(t.email || '')}?subject=${encodeURIComponent('Your RTC Rentals invite')}&body=${encodeURIComponent(msg)}">Send by email</a>
+      </div>`,
+    async onSubmit() {},
+  });
+  document.getElementById('inv-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(link); toast('Link copied'); }
+    catch { document.getElementById('inv-link').select(); toast('Press Ctrl+C or Cmd+C to copy'); }
+  });
+}
+
 document.getElementById('add-tenancy').addEventListener('click', () => tenancyForm());
 list.addEventListener('click', e => {
   const b = e.target.closest('button[data-action]');
   if (!b) return;
   if (b.dataset.action === 'add') tenancyForm();
   if (b.dataset.action === 'edit') tenancyForm(tenancies.find(l => l.id === b.dataset.id));
+  if (b.dataset.action === 'invite') invite(tenancies.find(l => l.id === b.dataset.id), b);
 });
 
 await refresh();
