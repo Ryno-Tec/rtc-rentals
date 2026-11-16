@@ -32,11 +32,11 @@ const live = {
   },
   async home() {
     const sb = await client();
-    const t = await sb.from('tenants').select('id, full_name, email, phone, landlord_id').single();
+    const t = await sb.from('tenants').select('id, full_name, email, phone, landlord_id, photo_path').single();
     if (t.error) throw new DataError('Your tenant profile isn’t linked yet. Ask your landlord to resend your invite.');
     const [lease, landlord, payments] = await Promise.all([
       sb.from('leases').select('*, unit:units(*, property:properties(*))').in('status', ['signed', 'active']).maybeSingle(),
-      sb.from('landlords').select('full_name, phone, email').eq('id', t.data.landlord_id).single(),
+      sb.from('landlords').select('full_name, phone, email, photo_path').eq('id', t.data.landlord_id).single(),
       sb.from('payments').select('*').order('period_month', { ascending: false }),
     ]);
     for (const r of [lease, landlord, payments]) if (r.error) throw new DataError(r.error.message);

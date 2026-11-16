@@ -1,6 +1,7 @@
 // Shared page chrome: sidebar, auth guard, demo banner, modal, toasts, formatting.
 import { api, isDemo, configured, leaveDemo, resetDemo } from './data.js';
 import { appLock, lockSettings } from './lock.js';
+import { avatar, photoUrls, changePhoto } from './photo.js';
 
 export const icon = {
   logo: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5.5h4V20"/></svg>',
@@ -9,6 +10,7 @@ export const icon = {
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14a6.5 6.5 0 0 1 3 6"/></svg>',
   file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
   cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/></svg>',
+  receipt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a2 2 0 0 0 2.8 2.8l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.3-.5-.5-2.3z"/></svg>',
   clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/></svg>',
@@ -42,6 +44,7 @@ const NAV = [
   { href: 'leases.html', label: 'Lease signing', icon: 'file' },
   { href: 'inspections.html', label: 'Inspections', icon: 'clipboard' },
   { href: 'maintenance.html', label: 'Maintenance', icon: 'tool' },
+  { href: 'tax.html', label: 'Tax reports', icon: 'receipt' },
 ];
 const SOON = [];
 
@@ -65,7 +68,7 @@ export async function mountShell(active) {
         ${SOON.length ? `<div class="nav-label">Coming soon</div>${SOON.map(n => `<span class="soon">${icon[n.icon]}${n.label}<em>Soon</em></span>`).join('')}` : ''}
       </nav>
       <div class="sidebar-foot">
-        <div class="who">${esc(profile.full_name || profile.email)}</div>
+        <button type="button" class="who-btn" id="me" title="Your profile photo"><span id="me-avatar"></span><span class="who">${esc(profile.full_name || profile.email)}</span></button>
         <div class="muted">${profile.limits ? esc(profile.limits.display_name) + ' plan' : ''}</div>
         <button class="btn btn-ghost btn-sm" id="applock" type="button">${icon.lock}App lock</button>
         <button class="btn btn-ghost btn-sm" id="signout">${isDemo() && !configured ? 'Reset demo data' : isDemo() ? 'Leave demo' : 'Sign out'}</button>
@@ -93,6 +96,16 @@ export async function mountShell(active) {
   });
 
   shell.querySelector('#applock').addEventListener('click', () => lockSettings(session));
+  const meName = profile.full_name || session.name || session.email;
+  const drawMe = async () => {
+    const u = (await photoUrls([profile.photo_path]).catch(() => ({})))[profile.photo_path];
+    shell.querySelector('#me-avatar').innerHTML = avatar(u, meName, 30);
+    return u;
+  };
+  drawMe();
+  shell.querySelector('#me').addEventListener('click', async () => changePhoto({
+    name: meName, email: session.email, url: await drawMe(), path: profile.photo_path,
+    onSaved: p => { profile.photo_path = p; drawMe(); } }));
   shell.querySelector('#signout').addEventListener('click', async () => {
     if (isDemo() && !configured) {
       if (await confirmDialog('Reset demo data?', 'This puts the sample properties back and removes your changes.', 'Reset')) {
@@ -142,7 +155,7 @@ export function openModal({ title, body, submitLabel = 'Save', danger = false, c
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true; err.classList.add('hidden');
-    try { await onSubmit(form); close(); }
+    try { if (await onSubmit(form) === false) btn.disabled = false; else close(); }   // return false to keep it open
     catch (ex) { err.textContent = ex.message; err.classList.remove('hidden'); btn.disabled = false; err.scrollIntoView({ block: 'nearest' }); }
   });
   (form.querySelector('.modal-body input, .modal-body select, .modal-body textarea') || form.querySelector('[type=submit]')).focus();

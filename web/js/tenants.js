@@ -1,11 +1,13 @@
 import { api, LEASE_STATUS } from './data.js';
 import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
+import { avatar, photoUrls } from './photo.js';
 import { currentRent, nextEscalation, monthLabel, eftReference, ordinal as ord } from './ledger.js';
 
 await mountShell('tenants.html');
 const list = document.getElementById('list');
 document.getElementById('add-tenancy').innerHTML = `${icon.plus}Add tenant`;
 
+let photos = {};
 let tenancies = [], properties = [], invites = [];
 const fmtDate = d => d ? new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const live = l => ['active', 'signed'].includes(l.status);
@@ -28,7 +30,7 @@ function render() {
     return `<article class="card prop">
       <div class="prop-head">
         <div class="meta">
-          <h2>${esc(t.full_name || 'Tenant')} ${leaseBadge(l)}</h2>
+          <h2 class="with-avatar">${avatar(photos[t.photo_path], t.full_name, 34)}<span>${esc(t.full_name || 'Tenant')}</span> ${leaseBadge(l)}</h2>
           <div class="addr">${esc(u.label || '')}${u.property ? ' · ' + esc(u.property.name) : ''}</div>
           <div class="stats">
             <span><b class="num">${money(currentRent(l))}</b> a month${Number(l.escalation_pct) ? ` · +${Number(l.escalation_pct)}% a year` : ''}</span>
@@ -56,7 +58,9 @@ function render() {
 }
 
 async function refresh() {
-  try { [tenancies, properties, invites] = await Promise.all([api.tenancies(), api.properties(), api.invites().catch(() => [])]); render(); }
+  try { [tenancies, properties, invites] = await Promise.all([api.tenancies(), api.properties(), api.invites().catch(() => [])]);
+    photos = await photoUrls(tenancies.map(l => l.tenant?.photo_path)).catch(() => ({}));
+    render(); }
   catch (e) { list.innerHTML = `<div class="form-error">Couldn’t load tenants: ${esc(e.message)}</div>`; }
 }
 

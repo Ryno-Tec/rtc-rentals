@@ -1,6 +1,6 @@
 // Maintenance: the owner's fault board and team, and the maintenance person's jobs.
 // Live: Supabase (007_maintenance_team.sql decides who sees what). Demo: sample data in this browser.
-import { isDemo, client, demoStore, DataError } from './data.js';
+import { isDemo, client, demoStore, DataError, demoAvatar } from './data.js';
 
 export const STATUS = { open: 'Logged', assigned: 'Booked', in_progress: 'In progress', resolved: 'Fixed', closed: 'Closed' };
 export const PRIORITY = { low: 'Can wait', medium: 'This week', high: 'As soon as possible', urgent: 'Emergency' };
@@ -76,7 +76,7 @@ const live = {
     const u = data.session?.user;
     return u ? { email: u.email, name: u.user_metadata?.full_name || '', role: u.user_metadata?.role || 'landlord' } : null;
   },
-  async me() { const sb = await client(); return ok(await sb.from('maintenance_staff').select('id, full_name, trade, landlord_id')); },
+  async me() { const sb = await client(); return ok(await sb.from('maintenance_staff').select('id, full_name, trade, landlord_id, photo_path')); },
   async jobs() { const sb = await client(); return ok(await sb.rpc('staff_jobs')); },
   async updateJob(id, status, note) {
     const sb = await client();
@@ -99,7 +99,12 @@ const live = {
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw new DataError(error.message === 'Invalid login credentials' ? 'Email or password is incorrect.' : error.message);
   },
-  async acceptInvite(token) { const sb = await client(); ok(await sb.rpc('accept_staff_invite', { p_token: token })); },
+  async acceptInvite(token) {
+    const sb = await client();
+    ok(await sb.rpc('accept_staff_invite', { p_token: token }));
+    const { data: { user } } = await sb.auth.getUser();     // Google/Apple sign-ins arrive without a role
+    if (user?.user_metadata?.role !== 'staff') { await sb.auth.updateUser({ data: { role: 'staff' } }); await sb.auth.refreshSession(); }
+  },
   async signOut() { const sb = await client(); await sb.auth.signOut(); },
   async subscribe(onChange) {
     const sb = await client();
@@ -122,7 +127,7 @@ function ready(s) {
   if (!s.staff) {
     const t = now();
     s.staff = [
-      { id: uid(), full_name: 'Sipho Ndlovu', trade: 'Handyman', phone: '073 210 4455', email: 'sipho.n@example.co.za', is_employee: true, active: true, user_id: 'demo', contract: null, created_at: t },
+      { id: uid(), full_name: 'Sipho Ndlovu', trade: 'Handyman', phone: '073 210 4455', email: 'sipho.n@example.co.za', is_employee: true, active: true, user_id: 'demo', contract: null, created_at: t, photo_path: demoAvatar('SN', '#15803d') },
       { id: uid(), full_name: 'Mabaso Plumbing', trade: 'Plumber', phone: '011 938 2210', email: null, is_employee: false, active: true, user_id: null, contract: null, created_at: t },
     ];
     for (const r of s.maintenance || []) {

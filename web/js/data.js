@@ -138,7 +138,7 @@ const live = {
 
   async profile() {
     const sb = await client();
-    const { data, error } = await sb.from('landlords').select('full_name, email, tier').single();
+    const { data, error } = await sb.from('landlords').select('full_name, email, tier, photo_path').single();
     if (error) throw friendly(error);
     return { ...data, limits: TIERS[data.tier] };
   },
@@ -230,6 +230,9 @@ const live = {
     const sb = await client();
     const { error } = await sb.rpc('accept_tenant_invite', { p_token: token });
     if (error) throw new DataError(error.message);
+    // Someone who came in through Google or Apple has no role yet: mark the account as a tenant's.
+    const { data: { user } } = await sb.auth.getUser();
+    if (user?.user_metadata?.role !== 'tenant') { await sb.auth.updateUser({ data: { role: 'tenant' } }); await sb.auth.refreshSession(); }
   },
   async payments(leaseIds) {
     if (!leaseIds.length) return [];
@@ -287,6 +290,7 @@ function seed() {
   ];
   return {
     ...tenantSeed(units[0], now),
+    expenses: demoExpenses(a, c),
     profile: { full_name: 'Thabo Mabaso', email: 'thabo@example.co.za', phone: '082 555 0142', tier: 'growth' },
     properties: [
       p(a, 'Mabaso Street rooms', 'backyard_rooms', '12 Mabaso Street', 'Orlando East', 'Soweto', 'GP', '1804'),
@@ -295,6 +299,24 @@ function seed() {
     ],
     units,
   };
+}
+
+// Sample profile pictures (drawn, not real people) so the demo opens without the photo step.
+export const demoAvatar = (initials, bg) => 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${bg}"/><circle cx="32" cy="25" r="12" fill="#fff" opacity=".9"/><path d="M10 64c3-13 12-19 22-19s19 6 22 19z" fill="#fff" opacity=".9"/><text x="32" y="30" font-family="Arial" font-size="11" font-weight="700" text-anchor="middle" fill="${bg}">${initials}</text></svg>`);
+
+// A few expenses in the current tax year (1 March to end February) for the tax report demo.
+function demoExpenses(roomsId, townhousesId) {
+  const now = new Date(), y = now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1;   // year the tax year started
+  const d = (m, day) => { const yy = m >= 2 ? y : y + 1; return `${yy}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; };
+  const e = (property_id, spent_on, category, amount, description) => ({ id: uid(), property_id, spent_on, category, amount, description, created_at: now.toISOString() });
+  return [
+    e(roomsId, d(2, 15), 'rates', 1240, 'City of Johannesburg, March'),
+    e(roomsId, d(5, 15), 'rates', 1240, 'City of Johannesburg, June'),
+    e(roomsId, d(3, 2), 'insurance', 3600, 'Building cover, annual'),
+    e(townhousesId, d(2, 30), 'levies', 2150, 'Body corporate, March'),
+    e(townhousesId, d(4, 30), 'bond_interest', 6820, 'Bond interest (from the bank statement)'),
+  ].filter(x => x.spent_on <= now.toISOString().slice(0, 10));
 }
 
 // Sample tenant for the tenant portal demo: Lerato in Room 1, seven months into her lease,
@@ -320,7 +342,7 @@ function tenantSeed(unit, now) {
     status: 'pending', method: null, provider_ref: null, paid_at: null, created_at: now });
   const ago = d => new Date(Date.now() - d * 864e5).toISOString();
   return {
-    tenants: [{ id: tenantId, full_name: 'Lerato Nkosi', email: 'lerato.n@example.co.za', phone: '071 482 9930',
+    tenants: [{ id: tenantId, full_name: 'Lerato Nkosi', email: 'lerato.n@example.co.za', phone: '071 482 9930', photo_path: demoAvatar('LN', '#c4471a'),
       employer: 'Bara Hospital', created_at: now }],
     leases: [{ id: leaseId, unit_id: unit.id, tenant_id: tenantId, status: 'active',
       start_date: ym(start.getFullYear(), start.getMonth()), end_date: ym(start.getFullYear() + 1, start.getMonth()),

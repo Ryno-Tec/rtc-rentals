@@ -4,12 +4,13 @@ import { maintApi as m, STATUS, PRIORITY, CATEGORIES, isOpen } from './maint-dat
 import { mountShell, esc, icon, toast, openModal, formData, confirmDialog, money } from './shell.js';
 import { contractDefaults, validateContract, buildContract, contractHtml } from './staff-contract.js';
 import { printPage, fmtWhen } from './lease-ui.js';
+import { avatar, photoUrls } from './photo.js';
 
 const profile = await mountShell('maintenance.html');
 const list = document.getElementById('list');
 const newBtn = document.getElementById('new-fault');
 newBtn.innerHTML = `${icon.plus}Log a fault`;
-let requests = [], staff = [], properties = [];
+let requests = [], staff = [], properties = [], photos = {};
 const filters = { property: '', show: 'open' };
 
 const tone = s => ({ open: 'late', assigned: 'soon', in_progress: 'info', resolved: 'ok', closed: 'muted' }[s]);
@@ -138,8 +139,8 @@ function teamView() {
       <button class="btn" type="button" data-action="add-staff">${icon.plus}Add a person</button></div>
     ${staff.length ? `<section class="card">${staff.map(s => `
       <div class="t-row team-row">
-        <div><div class="unit-label">${esc(s.full_name)} ${loginState(s)}</div>
-          <div class="unit-sub">${esc(s.trade || 'Maintenance')} · ${s.is_employee ? 'Employed by you' : 'Contractor'}${s.phone ? ` · ${esc(s.phone)}` : ''} · ${open(s.id)} open job${open(s.id) === 1 ? '' : 's'}</div></div>
+        <div class="with-avatar">${avatar(photos[s.photo_path], s.full_name, 38)}<div><div class="unit-label">${esc(s.full_name)} ${loginState(s)}</div>
+          <div class="unit-sub">${esc(s.trade || 'Maintenance')} · ${s.is_employee ? 'Employed by you' : 'Contractor'}${s.phone ? ` · ${esc(s.phone)}` : ''} · ${open(s.id)} open job${open(s.id) === 1 ? '' : 's'}</div></div></div>
         <div class="prop-actions">
           ${s.active && !s.user_id ? `<button class="btn btn-sm" type="button" data-action="invite" data-id="${s.id}">${s.invite ? 'New login link' : 'Give a login'}</button>` : ''}
           ${s.is_employee ? `<a class="btn btn-ghost btn-sm" href="#contract-${s.id}">${icon.file}Contract</a>` : ''}
@@ -279,6 +280,7 @@ function render() {
 async function refresh() {
   try {
     [requests, staff, properties] = await Promise.all([m.requests(), m.staff(), api.properties()]);
+    photos = await photoUrls(staff.map(s => s.photo_path)).catch(() => ({}));
     render();
   } catch (e) {
     list.innerHTML = `<div class="form-error">Couldn’t load maintenance: ${esc(e.message)}${/maintenance_staff|assigned_to|schema cache|does not exist/i.test(e.message)

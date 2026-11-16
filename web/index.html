@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>RTC Rentals — Sign in</title>
   <meta name="description" content="Property management for South African landlords who manage their own rentals.">
@@ -43,6 +43,7 @@
           <button type="button" role="tab" aria-selected="false" data-tab="signup">Create account</button>
         </div>
 
+        <div id="oauth" class="oauth hidden"></div>
         <form id="form" novalidate>
           <div class="form-error hidden" role="alert" id="error"></div>
           <div class="notice hidden" role="status" id="info"></div>
@@ -76,6 +77,9 @@
 <script type="module">
   import { api, configured, isDemo, enterDemo, leaveDemo } from './js/data.js';
   import { brand, icon } from './js/shell.js';
+  import { mountOAuth } from './js/oauth.js';
+  mountOAuth(document.getElementById('oauth'), { redirectTo: new URL('index.html', location.href).href,
+    onError: m => { const e = document.getElementById('error'); e.textContent = m; e.classList.remove('hidden'); } });
 
   document.getElementById('brand').innerHTML = brand('by Ryno-Tec');
   document.getElementById('points').innerHTML = [

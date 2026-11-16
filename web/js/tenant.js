@@ -2,8 +2,10 @@ import { isDemo, PROVINCES, leaveDemo } from './data.js';
 import { tenantApi as api, CATEGORIES, URGENCY, REQUEST_STATUS, paymentReference } from './tenant-data.js';
 import { brand, esc, money, icon, toast, openModal, formData } from './shell.js';
 import { appLock, lockSettings } from './lock.js';
+import { avatar, photoUrls, requirePhoto, changePhoto } from './photo.js';
 import { docsApi, KINDS, roomTemplate } from './docs-data.js';
-import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton, hasSigned } from './lease-ui.js';
+import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton, hasSigned, printPage } from './lease-ui.js';
+import { taxYearOf, inYear, taxYearLabel } from './tax-data.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
 
 const ico = {
@@ -232,7 +234,8 @@ function paymentsView() {
         <div><div class="label">On time</div><div class="value num">${onTime} of ${paid.length}</div></div>
       </section>
       <section class="card t-wide" aria-labelledby="hist-h">
-        <div class="card-head"><h2 id="hist-h">Payment history</h2></div>
+        <div class="card-head"><h2 id="hist-h">Payment history</h2>
+          <button class="btn btn-ghost btn-sm" type="button" data-action="tax-statement">${ico.receipt}Tax-year statement</button></div>
         <div class="table-wrap"><table class="t-table">
           <thead><tr><th>Month</th><th class="right">Amount</th><th class="hide-sm">Paid</th><th>Status</th><th><span class="hidden">Receipt</span></th></tr></thead>
           <tbody>${payments.map(p => {
@@ -415,6 +418,39 @@ function receipt(id) {
   });
 }
 
+// A statement of rent paid in one SARS tax year (1 March to end February), to print or save as PDF.
+function taxStatement() {
+  const { tenant, unit, property, landlord, payments } = data;
+  const paid = payments.filter(p => p.paid_at && Number(p.amount_paid) > 0);
+  const years = [...new Set(paid.map(p => taxYearOf(p.paid_at)))].sort((a, b) => b - a);
+  if (!years.length) { toast('No payments recorded yet.', 'error'); return; }
+  const doc = y => {
+    const rows = paid.filter(p => inYear(p.paid_at, y)).sort((a, b) => a.paid_at.localeCompare(b.paid_at));
+    const total = rows.reduce((t, p) => t + Number(p.amount_paid), 0);
+    return `<article class="lease-doc printable tax-statement">
+      <header class="lease-head"><div class="lease-brand">RTC Rentals</div><h2>Statement of rent paid</h2>
+        <p class="muted" style="margin:4px 0 0">${esc(taxYearLabel(y))}</p></header>
+      <dl class="kv">
+        <div><dt>Tenant</dt><dd>${esc(tenant.full_name)}</dd></div>
+        <div><dt>Home</dt><dd>${esc([unit.label, property.street_address, property.suburb, property.city].filter(Boolean).join(', '))}</dd></div>
+        <div><dt>Landlord</dt><dd>${esc(landlord.full_name || '')}</dd></div>
+      </dl>
+      <table class="t-table" style="margin-top:14px"><thead><tr><th>Paid on</th><th>For</th><th class="right">Amount</th></tr></thead><tbody>
+        ${rows.map(p => `<tr><td>${shortDate(new Date(p.paid_at))}</td><td>${monthName(p.period_month)} rent</td><td class="right num">${money(p.amount_paid)}</td></tr>`).join('')}
+        <tr class="tax-net"><th colspan="2">Total paid in the tax year</th><td class="right num">${money(total)}</td></tr></tbody></table>
+      <p class="unit-sub" style="margin:14px 0 0">Generated ${shortDate(new Date())} from the rent records your landlord keeps in RTC Rentals (Ryno-Tec Consulting (Pty) Ltd).</p>
+    </article>`;
+  };
+  openModal({
+    title: 'Tax-year statement', submitLabel: 'Print or save as PDF',
+    body: `<div class="field no-print"><label for="ts-year">Tax year</label><select id="ts-year">${years.map(y => `<option value="${y}">${taxYearLabel(y)}</option>`).join('')}</select></div>
+      <div id="ts-doc">${doc(years[0])}</div>`,
+    async onSubmit() { printPage(); return false; },
+  });
+  const m = document.querySelector('.modal');
+  m.querySelector('#ts-year').addEventListener('change', e => { m.querySelector('#ts-doc').innerHTML = doc(Number(e.target.value)); });
+}
+
 function newRequest() {
   openModal({
     title: 'Report a problem', submitLabel: 'Send to landlord',
@@ -473,6 +509,7 @@ view.addEventListener('click', e => {
   if (action === 'new-inspection') newInspection();
   if (action === 'pay') payFlow(id);
   if (action === 'receipt') receipt(id);
+  if (action === 'tax-statement') taxStatement();
   if (action === 'new-request') { e.preventDefault(); if (currentTab() !== 'repairs') location.hash = 'repairs'; newRequest(); }
 });
 
@@ -490,8 +527,30 @@ view.addEventListener('keydown', e => {
   if (e.target.id === 'msg' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.form.requestSubmit(); }
 });
 
+// Tenants add a profile photo before using the app; the header shows it and lets them change it.
+let photoUrl = '';
+async function drawMe() {
+  const path = data?.tenant?.photo_path;
+  photoUrl = (await photoUrls([path]).catch(() => ({})))[path] || '';
+  document.getElementById('t-me').innerHTML = avatar(photoUrl, data?.tenant?.full_name, 30);
+}
+document.getElementById('t-me').addEventListener('click', () => changePhoto({
+  name: data.tenant.full_name, email: session.email, url: photoUrl, path: data.tenant.photo_path,
+  onSaved: p => { data.tenant.photo_path = p; drawMe(); } }));
+
 async function refresh() {
-  try { await loadAll(); render(); }
+  try {
+    await loadAll();
+    if (!limited && !data.tenant.photo_path) {
+      tabsEl.classList.add('hidden');
+      data.tenant.photo_path = await requirePhoto({ host: view, name: data.tenant.full_name, email: session.email,
+        who: `${data.landlord?.full_name || 'Your landlord'} asks every tenant for a profile photo, so they know who lives in their home.` });
+      tabsEl.classList.remove('hidden');
+      toast('Photo saved. Welcome!');
+    }
+    if (!limited) drawMe();
+    render();
+  }
   catch (ex) { view.innerHTML = `<div class="card card-pad"><h2>Can’t open your home yet</h2><p class="muted">${esc(ex.message)}</p></div>`; }
 }
 

@@ -1,6 +1,7 @@
 // Tenant registration from an owner's invite link: join.html?t=<token>
 import { api, configured, isDemo, client, enterDemo } from './data.js';
 import { brand, icon, esc } from './shell.js';
+import { mountOAuth } from './oauth.js';
 
 document.getElementById('brand').innerHTML = brand('by Ryno-Tec');
 document.getElementById('points').innerHTML = [
@@ -35,6 +36,7 @@ function form(p) {
       <button type="button" role="tab" aria-selected="true" data-tab="signup">Create account</button>
       <button type="button" role="tab" aria-selected="false" data-tab="signin">I have an account</button>
     </div>
+    <div id="oauth" class="oauth hidden" style="margin-top:16px"></div>
     <form id="form" novalidate>
       <div class="form-error hidden" role="alert" id="error"></div>
       <div class="field" id="name-field"><label for="name">Full name</label><input id="name" autocomplete="name" value="${esc(p.tenant_name || '')}"></div>
@@ -47,6 +49,8 @@ function form(p) {
       <button class="btn" type="submit" id="submit">Create account</button>
     </form>`);
   const $ = id => document.getElementById(id);
+  // Google/Apple/Microsoft come back to this same invite link, which then links the account.
+  mountOAuth($('oauth'), { redirectTo: location.href, onError: m => { $('error').textContent = m; $('error').classList.remove('hidden'); } });
   box.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => {
     mode = b.dataset.tab;
     box.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));

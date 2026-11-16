@@ -5,6 +5,8 @@ import { maintApi as m, STATUS, PRIORITY, isOpen } from './maint-data.js';
 import { brand, esc, icon, toast, openModal } from './shell.js';
 import { fmtWhen } from './lease-ui.js';
 import { appLock, lockSettings } from './lock.js';
+import { mountOAuth } from './oauth.js';
+import { avatar, photoUrls, requirePhoto, changePhoto } from './photo.js';
 
 const ico = {
   ...icon,
@@ -128,6 +130,7 @@ function registerForm(p) {
     <div class="auth-box"><div class="tabs" role="tablist">
       <button type="button" role="tab" aria-selected="true" data-mode="signup">Create login</button>
       <button type="button" role="tab" aria-selected="false" data-mode="signin">I have a login</button></div></div>
+    <div id="oauth" class="oauth hidden" style="margin-top:16px"></div>
     <form id="sj" novalidate>
       <div class="form-error hidden" role="alert" id="sj-err"></div>
       <div class="field" id="sj-name-f"><label for="sj-name">Full name</label><input id="sj-name" autocomplete="name" value="${esc(p.staff_name || '')}"></div>
@@ -137,6 +140,7 @@ function registerForm(p) {
       <button class="btn" type="submit" id="sj-go">Create login</button>
     </form></div>`;
   const $ = id => document.getElementById(id);
+  mountOAuth($('oauth'), { redirectTo: location.href, onError: t => { $('sj-err').textContent = t; $('sj-err').classList.remove('hidden'); } });
   view.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
     mode = b.dataset.mode;
     view.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
@@ -174,6 +178,21 @@ async function start() {
   const me = await m.me().catch(() => []);
   document.getElementById('t-name').textContent = me[0]?.full_name || s.name || s.email;
   if (!me.length && !isDemo()) return problem('You’re not on a team yet', 'Ask the property owner to send you a login link.');
+  const mine = me[0] || {};
+  if (!mine.photo_path) {
+    tabsEl.innerHTML = '';
+    mine.photo_path = await requirePhoto({ host: view, name: mine.full_name || s.name, email: s.email,
+      who: 'Owners and tenants see your photo on each job, so they know who is coming to the door.' });
+    toast('Photo saved');
+  }
+  let photoUrl = '';
+  const drawMe = async () => {
+    photoUrl = (await photoUrls([mine.photo_path]).catch(() => ({})))[mine.photo_path] || '';
+    document.getElementById('t-me').innerHTML = avatar(photoUrl, mine.full_name, 30);
+  };
+  drawMe();
+  document.getElementById('t-me').addEventListener('click', () => changePhoto({ name: mine.full_name, email: s.email, url: photoUrl,
+    path: mine.photo_path, onSaved: p => { mine.photo_path = p; drawMe(); } }));
   window.addEventListener('hashchange', render);
   view.addEventListener('click', e => { const b = e.target.closest('[data-job]'); if (b) update(b.dataset.job, b.dataset.status); });
   m.subscribe(() => load()).catch(() => {});
