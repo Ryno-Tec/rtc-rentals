@@ -598,3 +598,18 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .side-switch { width: 100%; justify-content: center; margin-bottom: 6px; }
 .t-who .side-switch { width: auto; margin: 0; white-space: nowrap; }
 .side-switch svg { width: 15px; height: 15px; }
+
+/* ---------- Help ---------- */
+.help-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.help-search { width: 100%; margin: 14px 0 10px; font-size: 15px; padding: 11px 14px; }
+.help-roles { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.help-roles a { padding: 6px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-2); font-weight: 550; font-size: 13px; }
+.help section { margin-top: 22px; }
+.help details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+.help summary { cursor: pointer; padding: 12px 16px; font-weight: 600; color: var(--ink); list-style-position: inside; }
+.help details[open] summary { border-bottom: 1px solid #f4efea; }
+.help details > :not(summary) { margin: 10px 16px 14px; }
+.help ol { padding-left: 20px; }
+.help li { margin-bottom: 6px; }
+.help-link svg { width: 16px; height: 16px; }
+.sidebar-foot .help-link { width: 100%; justify-content: center; margin-bottom: 6px; }

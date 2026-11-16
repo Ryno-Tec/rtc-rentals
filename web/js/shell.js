@@ -74,6 +74,7 @@ export async function mountShell(active) {
         <button type="button" class="who-btn" id="me" title="Your profile photo"><span id="me-avatar"></span><span class="who">${esc(profile.full_name || profile.email)}</span></button>
         <div class="muted">${profile.limits ? esc(profile.limits.display_name) + ' plan' : ''}</div>
         ${dual ? `<a class="btn btn-sm side-switch" href="tenant.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5h4v5"/></svg>My home (as a tenant)</a>` : ''}
+        <a class="btn btn-ghost btn-sm help-link" href="help.html#owners"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>How to use the app</a>
         <button class="btn btn-ghost btn-sm" id="applock" type="button">${icon.lock}App lock</button>
         <button class="btn btn-ghost btn-sm" id="signout">${isDemo() && !configured ? 'Reset demo data' : isDemo() ? 'Leave demo' : 'Sign out'}</button>
       </div>

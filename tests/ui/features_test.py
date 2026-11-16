@@ -118,6 +118,20 @@ with sync_playwright() as pw:
     page.goto(f"{BASE}/maintenance.html#team")
     expect(page.locator(".team-row", has_text="Sipho Ndlovu").locator("img")).to_be_visible()
 
+    # ---- How-to guide: linked from each app, searchable
+    page.goto(f"{BASE}/dashboard.html")
+    page.locator(".sidebar-foot .help-link").click()
+    page.wait_for_url("**/help.html#owners")
+    expect(page.locator("#owners details").first).to_have_attribute("open", "")
+    page.locator("#h-search").fill("witness")
+    expect(page.locator(".help details:not(.hidden)").first).to_contain_text("lease")
+    expect(page.locator("#team")).to_be_hidden()
+    page.locator("#h-search").fill("zzzz")
+    expect(page.locator("#h-none")).to_be_visible()
+    page.screenshot(path=SHOTS / "help.png", full_page=True)
+    page.goto(f"{BASE}/tenant.html")
+    expect(page.locator(".t-who .help-link")).to_have_attribute("href", "help.html#tenants")
+
     # ---- Social sign-in buttons appear only for providers switched on in Supabase
     live = browser.new_page()
     live.on("pageerror", lambda e: errors.append(f"live: {e}"))

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>How to use RTC Rentals — Help</title>
+  <meta name="description" content="Property management for South African landlords who manage their own rentals.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ff6b35'/%3E%3Cpath d='M7 15.5 16 8l9 7.5M9.5 13.5V24h13V13.5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="RTC Rentals">
+</head>
+<body class="tenant-body">
+<main class="t-page legal help">
+  <div class="help-top"><div id="h-brand"></div><a class="btn btn-ghost btn-sm" id="h-back" href="index.html">← Back to the app</a></div>
+  <h1>How to use RTC Rentals</h1>
+  <p class="muted">Short guides for owners, tenants and maintenance people. Tap a question to open it.</p>
+  <input class="help-search" id="h-search" type="search" placeholder="Search the guide, e.g. invite, lease, PIN, receipt" aria-label="Search the guide">
+  <nav class="help-roles" aria-label="Who is this for">
+    <a href="#start">Getting started</a><a href="#owners">I’m an owner</a><a href="#tenants">I’m a tenant</a><a href="#team">I fix things</a><a href="#account">Login and security</a>
+  </nav>
+
+  <section id="start">
+    <h2>Getting started</h2>
+    <details><summary>What is RTC Rentals?</summary>
+      <p>An app for landlords who manage their own rentals, their tenants and the people who fix things. Owners keep properties, leases, rent, inspections, repairs and tax records in one place. Tenants see their lease, pay rent, get receipts and report repairs. Maintenance people see the jobs they’re given.</p></details>
+    <details><summary>Install the app on your phone</summary>
+      <ol><li><b>Android and Huawei:</b> open rentals.ryno-tec.co.za in Chrome (or Huawei Browser) and tap <b>Install app</b> when the bar appears, or use the menu ⋮ → <b>Install app</b> / <b>Add to home screen</b>.</li>
+        <li><b>iPhone and iPad:</b> open the site in <b>Safari</b>, tap the Share button, then <b>Add to Home Screen</b>.</li>
+        <li><b>Computer:</b> in Chrome or Edge, click the install icon at the right of the address bar.</li></ol>
+      <p>The app then opens from its own icon, full screen, and keeps working on a weak connection.</p></details>
+    <details><summary>Try it without an account</summary>
+      <p>On the sign-in page, tap <b>Explore the demo</b>. It fills the app with sample properties and tenants, kept only in your browser. Use <b>See what your tenant sees</b> and <b>See what your maintenance person sees</b> to look around the other two apps.</p></details>
+  </section>
+
+  <section id="owners">
+    <h2>For owners</h2>
+    <details><summary>1. Create your account and add your property</summary>
+      <ol><li>On the sign-in page tap <b>Create account</b>, or <b>Continue with Google</b>.</li>
+        <li>Go to <b>Properties &amp; units</b> → <b>Add property</b>: name, street address, suburb, city, province, postal code.</li>
+        <li>On the property, tap <b>Unit</b> for each place you let: a house is one unit; a block of rooms has one per room. Add rent, deposit, bedrooms and the prepaid meter number.</li></ol></details>
+    <details><summary>2. Add your tenant and their lease terms</summary>
+      <ol><li><b>Tenants &amp; leases</b> → <b>Add tenant</b>: name, phone, email, ID number.</li>
+        <li>Choose the unit, the date the lease started, the rent when it started, deposit and the day rent is due (1–31; a 31st falls on the last day of shorter months).</li>
+        <li><b>Yearly increase:</b> choose <b>Percentage</b> (e.g. 6%) or <b>Fixed amount</b> (e.g. R 250 a year). It applies on each anniversary of the start date.</li></ol></details>
+    <details><summary>3. Invite your tenant to the app</summary>
+      <ol><li>On the tenant, tap <b>Invite to the app</b>. Send the link by WhatsApp or email. It is shown once, works once and lasts 14 days.</li>
+        <li>Your tenant opens it, creates a login (or uses Google) and adds a profile photo. Their lease, rent and receipts then appear in their app.</li>
+        <li>The tenant then shows <b>Uses the app</b>. Lost the link? Tap <b>New invite link</b>.</li></ol></details>
+    <details><summary>4. Record rent and send receipts</summary>
+      <ol><li><b>Rent</b> shows what each tenant owes this month. For a tenancy that started before you used the app, choose <b>Months already paid in full</b> so you only track what’s still open.</li>
+        <li>When rent comes in, tap <b>Record payment</b>: amount, date, method and the EFT reference.</li>
+        <li>Your tenant sees it straight away with a receipt. <b>Receipt</b> and <b>Statement</b> print at any time.</li></ol></details>
+    <details><summary>5. Build and sign the lease in the app</summary>
+      <ol><li><b>Lease signing</b> → <b>Create lease</b>. It is filled in from what you already entered. Add your ID, address and bank details, and choose whether witnesses are needed.</li>
+        <li>Read the draft, then <b>Send for signing</b>. The text is then locked.</li>
+        <li>Tap <b>Sign the lease</b> and draw your signature. A witness can sign on your phone (<b>My witness signs here</b>) or from a link (<b>Send my witness a link</b>) without an account.</li>
+        <li>Your tenant signs in their app. When everyone has signed, the lease shows <b>Signed</b> with a record of who signed when. <b>Print or save as PDF</b> at any time.</li></ol>
+      <p class="muted">The lease is written in plain language around the Rental Housing Act and the Consumer Protection Act. It is a starting point, not legal advice.</p></details>
+    <details><summary>6. Do a move-in or move-out inspection</summary>
+      <ol><li><b>Inspections</b> → <b>New inspection</b> → Move-in (or Move-out). A checklist appears for every room.</li>
+        <li>Rate each item <b>Good</b>, <b>Fair</b>, <b>Damaged</b> or N/A. <b>Mark the rest Good</b> speeds up rooms in good order. Add a note and a <b>Photo</b> for anything marked or broken.</li>
+        <li>Tap <b>Confirm this inspection</b>. Your tenant checks it and confirms in their app. If either of you changes something, the other is asked to confirm again. Once both confirm, it is locked.</li>
+        <li>A move-out inspection shows the move-in rating beside each item, so damage is easy to compare.</li></ol></details>
+    <details><summary>7. Handle repairs and your maintenance team</summary>
+      <ol><li>Faults your tenants report appear in <b>Maintenance → Faults</b>, grouped by property.</li>
+        <li><b>Team</b> → <b>Add a person</b> for your handyman, plumber or electrician. <b>Give a login</b> sends them a link to their own app, where they see only the jobs you give them.</li>
+        <li>Open a fault to assign it, book a date, add an update and record the cost. Your tenant sees who is coming and when. Close it when the work is done.</li>
+        <li>For someone you employ directly, tick <b>I employ this person directly</b> and use <b>Contract</b> to write their employment contract.</li></ol></details>
+    <details><summary>8. Get your figures for SARS</summary>
+      <ol><li><b>Tax reports</b> shows rent received and expenses per property for each tax year (1 March to end February).</li>
+        <li>Add expenses with <b>Add an expense</b>: rates, levies, insurance, bond interest, agent fees and so on. Repair costs on maintenance jobs are counted automatically.</li>
+        <li><b>Download CSV</b> or <b>Print or save as PDF</b> for your tax practitioner. Only bond <i>interest</i> counts, and improvements are not repairs.</li></ol></details>
+    <details><summary>I also rent my own home from someone on the app</summary>
+      <p>Open your landlord’s invite with your owner login and choose <b>I have an account</b>. Your login then has two sides: <b>My properties</b> and <b>My home</b>. Switch with the button at the bottom of the menu or the top of the tenant app. Each side only shows its own records.</p></details>
+  </section>
+
+  <section id="tenants">
+    <h2>For tenants</h2>
+    <details><summary>Join from your landlord’s invite</summary>
+      <ol><li>Open the link your landlord sent. It names your landlord and your home, so you know it’s genuine.</li>
+        <li>Create a login with your email and a password (or <b>Continue with Google</b>), and agree to the privacy notice.</li>
+        <li>Confirm your email if asked (check spam), then add a profile photo. Your home, lease and rent appear.</li></ol></details>
+    <details><summary>Pay rent and get receipts</summary>
+      <p><b>Rent</b> shows what is due and when. Pay by EFT using the reference shown (tap the copy button). When your landlord records it, a receipt appears under <b>Payment history</b>. <b>Tax-year statement</b> gives a statement of rent paid in any tax year.</p></details>
+    <details><summary>Report a repair and follow it</summary>
+      <ol><li><b>Repairs</b> → <b>Report a problem</b>: what’s wrong, the type and how urgent it is.</li>
+        <li>Follow it on the same page: <b>Logged</b>, <b>Booked</b> (with who is coming and when), <b>In progress</b>, <b>Fixed</b>. Every update shows there.</li>
+        <li>For an emergency (burst geyser, no power, a security problem), also phone your landlord.</li></ol></details>
+    <details><summary>Read and sign your lease</summary>
+      <p>When your landlord sends the lease, <b>Lease</b> shows an orange dot. Read all of it. If something is wrong, message your landlord before you sign. Tap <b>Sign the lease</b> and draw your signature. If witnesses are needed, one can sign on your phone or from a link you send them.</p></details>
+    <details><summary>Do the move-in check</summary>
+      <p><b>Inspection</b> → open the check your landlord started (or <b>Start a check</b>). Go room by room, rate each item and take photos of anything already marked or broken. This protects your deposit. Confirm when you agree; if you change something, your landlord confirms again.</p></details>
+    <details><summary>Message your landlord</summary>
+      <p><b>Messages</b> keeps your conversation in one place, without sharing more phone numbers.</p></details>
+  </section>
+
+  <section id="team">
+    <h2>For maintenance people</h2>
+    <details><summary>Set up your login</summary>
+      <p>Open the link the owner sent you, create a login (or use Google) and add a profile photo, so the tenant knows who is at the door.</p></details>
+    <details><summary>Work through your jobs</summary>
+      <ol><li><b>To do</b> lists the jobs the owner gave you, with the booking date, the address (tap it for directions) and the tenant’s name with <b>Call</b> and <b>WhatsApp</b>.</li>
+        <li>Tap <b>Start the work</b> when you begin, <b>Add a note</b> for anything the owner or tenant should know (e.g. waiting for a part), and <b>Mark it fixed</b> when it’s done.</li>
+        <li>Finished jobs move to <b>Done</b>. The owner closes them.</li></ol>
+      <p class="muted">Keep tenants’ details private and only enter a home at the time agreed with the tenant.</p></details>
+  </section>
+
+  <section id="account">
+    <h2>Login and security</h2>
+    <details><summary>Set an app PIN, fingerprint or face unlock</summary>
+      <p>After you sign in, the app offers <b>Protect the app with a PIN</b>. Choose a 6-digit PIN and, on phones that have it, fingerprint or face unlock. Change it later under <b>App lock</b> (owners: bottom of the menu; tenants and maintenance: the lock icon at the top). The app locks when reopened or after the time you choose. Five wrong PINs sign you out; your password still works.</p></details>
+    <details><summary>I forgot my password</summary>
+      <p>On the sign-in page, type your email and tap <b>Forgot password?</b>. Open the email from RTC Rentals (check spam) and choose a new password.</p></details>
+    <details><summary>Change my profile photo</summary>
+      <p>Tap your photo: owners at the bottom of the menu, tenants and maintenance people at the top of the app.</p></details>
+    <details><summary>Who can see my information?</summary>
+      <p>Owners see only their own properties, tenants and team. Tenants see only their own home and lease. Maintenance people see only the jobs given to them. Read <a href="privacy.html">Privacy and your data</a>, and how to <a href="privacy.html#delete">delete your account</a>.</p></details>
+    <details><summary>Still stuck?</summary>
+      <p>Email <a href="mailto:rentals@ryno-tec.co.za">rentals@ryno-tec.co.za</a> with what you were trying to do and a screenshot.</p></details>
+  </section>
+  <p class="help-none hidden" id="h-none">Nothing matches that. Try another word, or email <a href="mailto:rentals@ryno-tec.co.za">rentals@ryno-tec.co.za</a>.</p>
+</main>
+<script type="module">
+  import { brand } from './js/shell.js';
+  document.getElementById('h-brand').innerHTML = brand('Help');
+  // Back to wherever they came from inside the app.
+  const from = document.referrer && new URL(document.referrer).origin === location.origin ? document.referrer : 'index.html';
+  document.getElementById('h-back').href = from;
+  // Open the section for the role in the address (#owners, #tenants, #team).
+  const open = () => { const s = document.querySelector(location.hash); if (s?.tagName === 'SECTION') s.querySelector('details')?.setAttribute('open', ''); };
+  addEventListener('hashchange', open); open();
+  const q = document.getElementById('h-search');
+  q.addEventListener('input', () => {
+    const t = q.value.trim().toLowerCase(); let any = false;
+    document.querySelectorAll('.help section').forEach(sec => {
+      let shown = 0;
+      sec.querySelectorAll('details').forEach(d => {
+        const hit = !t || d.textContent.toLowerCase().includes(t);
+        d.classList.toggle('hidden', !hit); if (hit) shown++;
+        if (t && hit) d.setAttribute('open', ''); else if (!t) d.removeAttribute('open');
+      });
+      sec.classList.toggle('hidden', !shown); any ||= shown > 0;
+    });
+    document.getElementById('h-none').classList.toggle('hidden', any);
+  });
+</script>
+</body>
+</html>
