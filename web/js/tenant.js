@@ -8,6 +8,7 @@ import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton
 import { taxYearOf, inYear, taxYearLabel } from './tax-data.js';
 import { currentRent, hasEscalation, escalationText, nextEscalation, monthLabel } from './ledger.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
+import { ozowReturn } from './ozow-client.js';
 
 const ico = {
   ...icon,
@@ -156,8 +157,8 @@ function rentCard() {
         <div class="rent-top"><h2 id="rent-h">${MONTHS[ymd(due.period_month).getMonth()]} rent</h2><span class="pill pill-${tone}">${label}</span></div>
         <div class="rent-amount num">${money(outstanding)}</div>
         <div class="muted">Due ${longDay(d)}</div>
-        <button class="btn btn-pay" type="button" data-action="pay" data-id="${due.id}">Pay ${money(outstanding)} now</button>
-        <div class="rent-eft">Or pay by EFT using reference <code class="ref">${esc(ref)}</code>
+        ${data.canPayOnline ? `<button class="btn btn-pay" type="button" data-action="pay" data-id="${due.id}">Pay ${money(outstanding)} now</button>` : ''}
+        <div class="rent-eft">${data.canPayOnline ? 'Or pay' : 'Pay'} by EFT using reference <code class="ref">${esc(ref)}</code>
           <button class="btn-copy" type="button" data-copy="${esc(ref)}" aria-label="Copy reference">${ico.copy}</button></div>
       </section>`;
   }
@@ -262,7 +263,7 @@ function paymentsView() {
               <td><span class="pill pill-${status[0]}">${status[1]}</span></td>
               <td class="actions">${p.status === 'paid'
                 ? `<button class="btn btn-ghost btn-sm" type="button" data-action="receipt" data-id="${p.id}">${ico.receipt}<span class="hide-sm">Receipt</span></button>`
-                : `<button class="btn btn-sm" type="button" data-action="pay" data-id="${p.id}">Pay</button>`}</td>
+                : data.canPayOnline ? `<button class="btn btn-sm" type="button" data-action="pay" data-id="${p.id}">Pay</button>` : ''}</td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -397,9 +398,10 @@ function payFlow(id) {
         <div><dt>For</dt><dd>${esc(data.unit.label)}, ${esc(data.property.name)}</dd></div>
         <div><dt>Reference</dt><dd><code class="ref">${esc(paymentReference(data.unit, data.tenant))}</code></dd></div>
       </dl>
-      <p class="muted" style="margin:14px 0 0;font-size:13px">Ozow opens your bank’s app so you can approve the payment. It reflects immediately and you get a receipt here.${isDemo() ? ' <b>In the demo nothing is charged.</b>' : ''}</p>`,
-    async onSubmit() {
+      <p class="muted" style="margin:14px 0 0;font-size:13px">Ozow takes you to your bank so you can approve the payment. The money goes straight to ${esc(data.landlord.full_name)}, and your receipt appears here once the bank confirms.${isDemo() ? ' <b>In the demo nothing is charged.</b>' : ''}</p>`,
+    async onSubmit(form) {
       const done = await api.pay(id);
+      if (done?.redirecting) { form.querySelector('[type=submit]').textContent = 'Opening Ozow…'; return false; }
       await refresh();
       toast('Payment received. Thank you!');
       if (done) receipt(done.id);
@@ -568,7 +570,18 @@ async function refresh() {
 }
 
 window.addEventListener('hashchange', () => { if (data) { render(); window.scrollTo(0, 0); } });
+const paid = ozowReturn();
 await refresh();
+if (paid === 'success') {
+  toast('Thank you! Your bank is confirming the payment. It shows here within a minute.');
+  const before = JSON.stringify(data?.payments?.map(p => p.status));
+  for (let i = 0; i < 8; i++) {                   // Ozow tells the server separately; check back a few times
+    await new Promise(r => setTimeout(r, 4000));
+    await refresh();
+    if (JSON.stringify(data?.payments?.map(p => p.status)) !== before) { toast('Payment received. Thank you!'); break; }
+  }
+} else if (paid === 'cancelled') toast('Payment cancelled. Nothing was taken from your account.');
+else if (paid === 'error') toast('Your bank couldn’t complete the payment. Nothing was taken. Try again or pay by EFT.', 'error');
 api.subscribe(() => {
   // Leave an open form or a half-done inspection alone; the next action reloads anyway.
   if (document.querySelector('.modal-backdrop') || (currentTab() === 'inspection' && hashParts()[1])) return;

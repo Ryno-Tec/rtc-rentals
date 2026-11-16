@@ -77,6 +77,14 @@
       <ol><li><b>Tax reports</b> shows rent received and expenses per property for each tax year (1 March to end February).</li>
         <li>Add expenses with <b>Add an expense</b>: rates, levies, insurance, bond interest, agent fees and so on. Repair costs on maintenance jobs are counted automatically.</li>
         <li><b>Download CSV</b> or <b>Print or save as PDF</b> for your tax practitioner. Only bond <i>interest</i> counts, and improvements are not repairs.</li></ol></details>
+    <details><summary>9. Let tenants pay rent online (Ozow)</summary>
+      <ol><li>Open a business account at <b>ozow.com</b> and finish their checks. Rent then goes straight from your tenant’s bank into <b>your</b> Ozow account; Ryno-Tec never holds it.</li>
+        <li>In the Ozow merchant dashboard copy your <b>Site Code</b>, <b>Private Key</b> and <b>API Key</b>.</li>
+        <li><b>Billing &amp; payments</b> → <b>Connect Ozow</b> and paste them. Leave <b>Test mode</b> on, pay one test month, then edit the connection and switch test mode off.</li>
+        <li>Your tenants now see <b>Pay now</b>. When the bank confirms, the month shows as paid with a receipt, without you recording it.</li></ol>
+      <p class="muted">Costs: Ozow’s own fee (about 1.5%) comes off your Ozow payout. RTC Rentals adds 0.5% per online payment, at most R 75, billed on your monthly invoice. EFT and cash payments you record yourself cost nothing extra.</p></details>
+    <details><summary>10. Your plan and invoices</summary>
+      <p><b>Billing &amp; payments</b> shows your plan, the online-payment fees so far this month and your invoices. An invoice is made on the 1st for the month before. Pay it with <b>Pay now</b> (Ozow) or by EFT using the invoice number as the reference.</p></details>
     <details><summary>I also rent my own home from someone on the app</summary>
       <p>Open your landlord’s invite with your owner login and choose <b>I have an account</b>. Your login then has two sides: <b>My properties</b> and <b>My home</b>. Switch with the button at the bottom of the menu or the top of the tenant app. Each side only shows its own records.</p></details>
   </section>
@@ -88,7 +96,7 @@
         <li>Create a login with your email and a password (or <b>Continue with Google</b>), and agree to the privacy notice.</li>
         <li>Confirm your email if asked (check spam), then add a profile photo. Your home, lease and rent appear.</li></ol></details>
     <details><summary>Pay rent and get receipts</summary>
-      <p><b>Rent</b> shows what is due and when. Pay by EFT using the reference shown (tap the copy button). When your landlord records it, a receipt appears under <b>Payment history</b>. <b>Tax-year statement</b> gives a statement of rent paid in any tax year.</p></details>
+      <p><b>Rent</b> shows what is due and when. If your landlord has switched on online payments, tap <b>Pay now</b>: Ozow opens your bank so you approve the payment, and it shows as paid within a minute. Otherwise pay by EFT using the reference shown (tap the copy button). When your landlord records it, a receipt appears under <b>Payment history</b>. <b>Tax-year statement</b> gives a statement of rent paid in any tax year.</p></details>
     <details><summary>Report a repair and follow it</summary>
       <ol><li><b>Repairs</b> → <b>Report a problem</b>: what’s wrong, the type and how urgent it is.</li>
         <li>Follow it on the same page: <b>Logged</b>, <b>Booked</b> (with who is coming and when), <b>In progress</b>, <b>Fixed</b>. Every update shows there.</li>
@@ -134,7 +142,7 @@
   const from = document.referrer && new URL(document.referrer).origin === location.origin ? document.referrer : 'index.html';
   document.getElementById('h-back').href = from;
   // Open the section for the role in the address (#owners, #tenants, #team).
-  const open = () => { const s = document.querySelector(location.hash); if (s?.tagName === 'SECTION') s.querySelector('details')?.setAttribute('open', ''); };
+  const open = () => { const id = location.hash.slice(1), s = id && document.getElementById(id); if (s?.tagName === 'SECTION') s.querySelector('details')?.setAttribute('open', ''); };
   addEventListener('hashchange', open); open();
   const q = document.getElementById('h-search');
   q.addEventListener('input', () => {

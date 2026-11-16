@@ -617,3 +617,6 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .oauth-google { background: #fff; border-color: #747775; color: #1f1f1f; font-weight: 500; }
 .oauth-google:hover { background: #f8f9fa; }
 .oauth-btns img { display: block; }
+
+/* Billing & payments */
+.billing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; align-items: start; }

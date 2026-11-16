@@ -45,6 +45,7 @@ const NAV = [
   { href: 'inspections.html', label: 'Inspections', icon: 'clipboard' },
   { href: 'maintenance.html', label: 'Maintenance', icon: 'tool' },
   { href: 'tax.html', label: 'Tax reports', icon: 'receipt' },
+  { href: 'billing.html', label: 'Billing & payments', icon: 'cash' },
 ];
 const SOON = [];
 

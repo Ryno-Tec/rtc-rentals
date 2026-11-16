@@ -2,6 +2,7 @@
 //   live — Supabase, limited by the tenant policies in 002_tenant_portal.sql
 //   demo — the shared sample data in this browser (Lerato Nkosi, Room 1)
 import { isDemo, client, demoStore, DataError } from './data.js';
+import { startOzow } from './ozow-client.js';
 
 export const CATEGORIES = ['Plumbing', 'Electrical', 'Doors & windows', 'Appliances', 'Roof & leaks', 'Security', 'Pests', 'Other'];
 export const URGENCY = {
@@ -34,19 +35,21 @@ const live = {
     const sb = await client();
     const t = await sb.from('tenants').select('id, full_name, email, phone, landlord_id, photo_path').single();
     if (t.error) throw new DataError('Your tenant profile isn’t linked yet. Ask your landlord to resend your invite.');
-    const [lease, landlord, payments] = await Promise.all([
+    const [lease, landlord, payments, online] = await Promise.all([
       sb.from('leases').select('*, unit:units(*, property:properties(*))').in('status', ['signed', 'active']).maybeSingle(),
       sb.from('landlords').select('full_name, phone, email, photo_path').eq('id', t.data.landlord_id).single(),
       sb.from('payments').select('*').order('period_month', { ascending: false }),
+      sb.rpc('tenant_can_pay_online'),
     ]);
     for (const r of [lease, landlord, payments]) if (r.error) throw new DataError(r.error.message);
     if (!lease.data) throw new DataError('You don’t have an active lease yet. Your landlord will send it for signing.');
     const { unit, ...l } = lease.data;
     const { property, ...un } = unit;
-    return { tenant: t.data, lease: l, unit: un, property, landlord: landlord.data, payments: payments.data };
+    return { tenant: t.data, lease: l, unit: un, property, landlord: landlord.data, payments: payments.data,
+      canPayOnline: online.error ? false : Boolean(online.data) };
   },
-  async pay() {
-    throw new DataError('Paying in the app switches on once Ozow is connected. For now, pay by EFT with your reference.');
+  async pay(paymentId) {
+    return startOzow({ payment_id: paymentId });          // leaves the page for Ozow; the result comes back as ?ozow=…
   },
   async maintenance() {
     const sb = await client();
@@ -108,6 +111,7 @@ const demo = {
       landlord: { full_name: s.profile.full_name, phone: s.profile.phone, email: s.profile.email },
       payments: s.payments.filter(p => p.lease_id === lease.id)
         .sort((a, b) => b.period_month.localeCompare(a.period_month)),
+      canPayOnline: true,
     };
   },
   async pay(paymentId) {
