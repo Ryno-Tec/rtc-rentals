@@ -15,7 +15,7 @@ reaches the store apps at once, without a new store release.
 1. **Get a D-U-N-S number** for Ryno-Tec Consulting (Pty) Ltd. It is free from Dun & Bradstreet
    (Apple's enrolment page has a lookup and request form). Use the company name exactly as on the
    CIPC certificate. Allow a week or more.
-2. **Use a shared mailbox** such as apps@ryno-tec.co.za for the store accounts, not a personal address.
+2. **Use a shared mailbox** such as rentals@ryno-tec.co.za for the store accounts, not a personal address.
 3. **Privacy policy and account deletion** are live: https://rentals.ryno-tec.co.za/privacy.html
    and https://rentals.ryno-tec.co.za/privacy.html#delete. All three stores ask for these URLs.
 4. **Screenshots** are in `web/screenshots/` (phone 1080x2338, and one wide).
