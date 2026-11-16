@@ -60,7 +60,10 @@ az rest --method PATCH --url "$G/applications/$OBJ_ID" --headers "Content-Type=a
 echo "Logo…"
 LOGO="$(mktemp "${TMPDIR:-/tmp}/rtc-logo.XXXXXX")"
 curl -fsSL "$SITE/icons/entra-logo-215.png" -o "$LOGO"
-az rest --method PUT --url "$G/applications/$OBJ_ID/logo" --headers "Content-Type=image/png" --body "@$LOGO" >/dev/null \
+# az rest sends files as text, which Graph rejects for images, so the logo goes up with curl.
+TOKEN=$(az account get-access-token --resource-type ms-graph --query accessToken -o tsv)
+curl -fsS -X PUT "$G/applications/$OBJ_ID/logo" -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/png" \
+  --data-binary "@$LOGO" >/dev/null && echo "  Logo set." \
   || echo "  (logo upload skipped; add it under Branding & properties)"
 rm -f "$LOGO"
 
