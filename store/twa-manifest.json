@@ -1,0 +1,27 @@
+{
+  "packageId": "za.co.rynotec.rentals",
+  "host": "rentals.ryno-tec.co.za",
+  "name": "RTC Rentals",
+  "launcherName": "RTC Rentals",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#FFFFFF",
+  "navigationColor": "#FFFFFF",
+  "backgroundColor": "#FAF8F6",
+  "enableNotifications": true,
+  "startUrl": "/index.html?source=android",
+  "iconUrl": "https://rentals.ryno-tec.co.za/icons/icon-512.png",
+  "maskableIconUrl": "https://rentals.ryno-tec.co.za/icons/maskable-512.png",
+  "webManifestUrl": "https://rentals.ryno-tec.co.za/manifest.webmanifest",
+  "fallbackType": "webview",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 21,
+  "signingKey": { "path": "./rtc-rentals-upload.keystore", "alias": "rtc-rentals" },
+  "shortcuts": [
+    { "name": "Rent", "shortName": "Rent", "url": "/rent.html", "chosenIconUrl": "https://rentals.ryno-tec.co.za/icons/icon-192.png" },
+    { "name": "Maintenance", "shortName": "Maintenance", "url": "/maintenance.html", "chosenIconUrl": "https://rentals.ryno-tec.co.za/icons/icon-192.png" }
+  ],
+  "features": {},
+  "isChromeOSOnly": false
+}

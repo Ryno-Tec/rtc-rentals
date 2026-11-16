@@ -1,7 +1,7 @@
 {
   "name": "RTC Rentals",
   "short_name": "RTC Rentals",
-  "description": "Rent, leases and tenants for South African landlords, by Ryno-Tec.",
+  "description": "Rent, leases, inspections and maintenance for South African landlords, tenants and maintenance teams. By Ryno-Tec.",
   "id": "/",
   "start_url": "./index.html?source=app",
   "scope": "./",
@@ -10,15 +10,104 @@
   "lang": "en-ZA",
   "background_color": "#faf8f6",
   "theme_color": "#ffffff",
-  "categories": ["business", "finance", "productivity"],
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Rent", "url": "./rent.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Tenants & leases", "url": "./tenants.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "Rent",
+      "url": "./rent.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Maintenance",
+      "url": "./maintenance.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Tenants & leases",
+      "url": "./tenants.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/tenant-home.png",
+      "sizes": "1080x2338",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Tenant app: rent due, home and lease"
+    },
+    {
+      "src": "screenshots/tenant-repairs.png",
+      "sizes": "1080x2338",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Tenants report repairs and follow progress"
+    },
+    {
+      "src": "screenshots/maintenance-jobs.png",
+      "sizes": "1080x2338",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Maintenance team app: assigned jobs"
+    },
+    {
+      "src": "screenshots/owner-dashboard.png",
+      "sizes": "1080x2338",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Owner dashboard"
+    },
+    {
+      "src": "screenshots/owner-maintenance-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Faults per property, assigned to your team"
+    }
   ]
 }

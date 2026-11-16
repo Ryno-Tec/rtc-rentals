@@ -9,6 +9,13 @@ experiences (owner and tenant), enforced by row-level security.
 - Owner/tenant separation on the same database (tenants only ever see their own lease).
 - Tenant invites: the owner sends a one-time registration link; the tenant registers and their lease loads.
 - Installable app (PWA) for Android, iPhone/iPad and Huawei; light Ryno-Tec theme.
+- In-app lease (plain language, based on the standard SA residential lease) with e-signatures,
+  witnesses in person or by one-time link, and a SHA-256 fingerprint of the signed text.
+- Move-in, move-out and routine inspections: room-by-room checklist, photos, both parties confirm.
+- Maintenance: faults per property, a maintenance team with their own login and job app,
+  tenant sees who's coming and progress; employment contract for directly employed staff.
+- Store readiness: privacy and account-deletion page, store screenshots, Android build config
+  (Google Play and Huawei AppGallery), guide in docs/APP-STORES.md.
 
 ## Next: tenant onboarding (requested 16 Nov 2026)
 1. **Owner sends a registration request.** Owner enters the tenant's email or phone; the tenant gets a
@@ -29,5 +36,4 @@ experiences (owner and tenant), enforced by row-level security.
 
 ## Later
 - Ozow rent payments with automatic reconciliation.
-- Move-in and move-out inspections with photos.
-- Store listings (Google Play, Apple App Store, Huawei AppGallery) by wrapping the same app.
+- Publish to Google Play and Huawei AppGallery (needs D-U-N-S and developer accounts); iOS app with Capacitor.

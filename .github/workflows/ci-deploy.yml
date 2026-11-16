@@ -61,6 +61,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Android app link (Google Play / AppGallery)
+        env:
+          ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          # Proves to Android that the store app and this website belong together, so the app
+          # opens full-screen without a browser bar. Set the repo variable once the signing key exists.
+          if [ -n "$ANDROID_CERT_SHA256" ]; then
+            mkdir -p web/.well-known
+            FPS=$(echo "$ANDROID_CERT_SHA256" | tr ',' '\n' | sed -E 's/^ *//; s/ *$//' | sed -E 's/.*/"&"/' | paste -sd, -)
+            printf '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"za.co.rynotec.rentals","sha256_cert_fingerprints":[%s]}}]\n' "$FPS" > web/.well-known/assetlinks.json
+            cat web/.well-known/assetlinks.json
+          fi
+
       - name: Write public Supabase settings
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
