@@ -42,7 +42,11 @@ const live = {
       sb.rpc('tenant_can_pay_online'),
     ]);
     for (const r of [lease, landlord, payments]) if (r.error) throw new DataError(r.error.message);
-    if (!lease.data) throw new DataError('You don’t have an active lease yet. Your landlord will send it for signing.');
+    if (!lease.data) {
+      const e = new DataError('You don’t have an active lease yet. Your landlord will send it for signing.');
+      e.partial = { tenant: t.data, landlord: landlord.data };   // enough for Messages and the Lease tab
+      throw e;
+    }
     const { unit, ...l } = lease.data;
     const { property, ...un } = unit;
     return { tenant: t.data, lease: l, unit: un, property, landlord: landlord.data, payments: payments.data,
@@ -69,6 +73,29 @@ const live = {
     const { data, error } = await sb.from('messages').select('*').order('created_at');
     if (error) throw new DataError(error.message);
     return data;
+  },
+  // ---- Automatic payments ----
+  async autopay(leaseId) {
+    const sb = await client();
+    const [o, m] = await Promise.all([sb.rpc('tenant_autopay_options'),
+      sb.from('payment_mandates').select('*, mandate_collections(period_month, amount, status, completed_at)').eq('lease_id', leaseId).order('created_at', { ascending: false }).limit(1)]);
+    return { options: o.data?.[0] || { ozow_capitec: false, netcash: false }, mandate: m.data?.[0] || null };
+  },
+  async setupAutopay(leaseId, maxAmount) {
+    const sb = await client();
+    const { data, error } = await sb.functions.invoke('autopay-setup', { body: { lease_id: leaseId, max_amount: maxAmount } });
+    if (error) { let m = 'Couldn’t start automatic payments. Try again.'; try { m = (await error.context.json()).error || m; } catch {} throw new DataError(m); }
+    return data;
+  },
+  async checkAutopay(mandateId) {
+    const sb = await client();
+    const { data } = await sb.functions.invoke('autopay-check', { body: { mandate_id: mandateId } });
+    return data?.status || 'pending';
+  },
+  async stopAutopay(mandateId) {
+    const sb = await client();
+    const { error } = await sb.rpc('cancel_mandate', { p_mandate: mandateId });
+    if (error) throw new DataError(error.message);
   },
   async send(tenantId, body) {
     const sb = await client();
@@ -161,6 +188,25 @@ const demo = {
   },
   async signOut() {},
   async subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },
+  async autopay(leaseId) {
+    const s = load();
+    const m = (s.mandates || []).filter(x => x.lease_id === leaseId).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null;
+    return { options: { ozow_capitec: true, netcash: true }, mandate: m };
+  },
+  async setupAutopay(leaseId, maxAmount) {
+    const s = load(); s.mandates = s.mandates || [];
+    if (s.mandates.some(m => m.lease_id === leaseId && ['pending', 'active'].includes(m.status))) throw new DataError('Automatic payments are already set up.');
+    const m = { id: uid(), lease_id: leaseId, provider: 'ozow_capitec', status: 'active', max_amount: Math.ceil(maxAmount),
+      created_at: new Date().toISOString(), activated_at: new Date().toISOString(), mandate_collections: [] };
+    s.mandates.push(m); save(s); emit();
+    return { mandate_id: m.id, redirectUrl: null, demo: true };
+  },
+  async checkAutopay(id) { return (load().mandates || []).find(m => m.id === id)?.status || 'pending'; },
+  async stopAutopay(id) {
+    const s = load(); const m = (s.mandates || []).find(x => x.id === id);
+    if (m) Object.assign(m, { status: 'cancelled', cancelled_at: new Date().toISOString() });
+    save(s); emit();
+  },
 };
 
 export const tenantApi = isDemo() ? demo : live;

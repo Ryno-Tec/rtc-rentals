@@ -26,7 +26,7 @@ jobs:
           bash tests/db/run.sh
 
       - name: Ozow signing tests
-        run: node tests/ozow/ozow.test.mjs
+        run: for t in tests/ozow/*.test.mjs; do node "$t"; done
 
       - uses: actions/setup-python@v5
         with:
@@ -74,7 +74,9 @@ jobs:
           npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
           npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
           npx -y supabase@latest functions deploy ozow-check --yes --project-ref "$REF" --use-api
-          npx -y supabase@latest functions deploy ozow-reconcile --yes --project-ref "$REF" --use-api
+          for f in ozow-reconcile autopay-setup autopay-check autopay-run rent-reminders; do
+            npx -y supabase@latest functions deploy "$f" --yes --project-ref "$REF" --use-api
+          done
           # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
           # rentals.ryno-tec.co.za; RTC_OZOW_IS_TEST=true only for Ozow staging credentials.
           if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then

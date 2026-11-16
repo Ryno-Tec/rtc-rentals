@@ -12,7 +12,9 @@ const month = s => new Date(String(s).slice(0, 10) + 'T12:00').toLocaleDateStrin
 const pct = n => `${Number(n).toLocaleString('en-ZA', { maximumFractionDigits: 2 })}%`;
 // Where owners pay Ryno-Tec's invoice by EFT if they prefer.
 const RTC_BANK = { name: 'Ryno-Tec Consulting (Pty) Ltd', bank: 'Nedbank', account: '1351461826', branch: '198765' };
-let d;
+let d, ap = null;
+const PROVIDER = { ozow_capitec: 'Capitec Pay', netcash_debicheck: 'DebiCheck' };
+const MSTATUS = { pending: ['soon', 'Waiting for approval'], active: ['ok', 'On'], cancelled: ['muted', 'Stopped'], expired: ['muted', 'Expired'], failed: ['late', 'Failed'], completed: ['muted', 'Ended'] };
 
 function ozowCard() {
   const o = d.ozow;
@@ -87,12 +89,60 @@ function invoicesCard() {
     </section>`;
 }
 
+function autopayCard() {
+  if (!ap) return '';
+  const st = ap.settings, name = id => { const l = ap.leases.find(x => x.id === id); return l ? `${l.tenant?.full_name || 'Tenant'} · ${l.unit?.label || ''}` : 'Past tenancy'; };
+  const rows = ap.mandates.filter(m => m.status !== 'failed' || Date.now() - new Date(m.created_at) < 30 * 864e5);
+  return `
+    <section class="card" aria-labelledby="ap-h" style="grid-column:1/-1">
+      <div class="card-head"><h2 id="ap-h">Automatic payments and reminders</h2>${ap.isAdmin ? '<button class="btn btn-sm" type="button" data-action="ap-settings">Settings</button>' : ''}</div>
+      <div class="card-pad">
+        <dl class="kv">
+          <div><dt>Capitec Pay recurring</dt><dd>${st.ozow_capitec ? '<span class="pill pill-ok">On</span> Tenants with Capitec can switch on automatic rent in their app.' : 'Off. Needs Ozow connected, and Ozow to enable recurring payments on your account.'}</dd></div>
+          <div><dt>DebiCheck debit orders</dt><dd>${st.netcash ? `<span class="pill pill-ok">On</span> Through your Netcash account${st.netcash_hint ? ` (key ending ${esc(st.netcash_hint)})` : ''}.` : 'Off. Works for every bank, through your own Netcash account.'}</dd></div>
+          <div><dt>Rent reminders</dt><dd>${st.reminders !== false ? 'On: emails 3 days before, on the day, and 1 and 7 days late.' : 'Off'}</dd></div>
+        </dl>
+        ${st.netcash ? '<button class="btn btn-ghost btn-sm" type="button" data-action="ap-debicheck" style="margin-top:12px">Add a DebiCheck debit order</button>' : ''}
+      </div>
+      ${rows.length ? `<div class="table-wrap"><table class="t-table"><thead><tr><th>Tenant</th><th>Method</th><th class="right">Up to</th><th class="hide-sm">Last collection</th><th>Status</th><th></th></tr></thead><tbody>
+        ${rows.map(m => { const last = (m.mandate_collections || []).sort((a, b) => String(b.period_month).localeCompare(a.period_month))[0]; const s2 = MSTATUS[m.status] || ['muted', m.status];
+          return `<tr><td>${esc(name(m.lease_id))}</td><td>${PROVIDER[m.provider]}</td><td class="right num">${rand(m.max_amount)}</td>
+            <td class="hide-sm">${last ? `${month(last.period_month)} · ${rand(last.amount)} · ${{ successful: 'paid', failed: 'failed', pending: 'in progress', submitted: 'sent to bank' }[last.status]}` : '<span class="muted">—</span>'}</td>
+            <td><span class="pill pill-${s2[0]}">${s2[1]}</span></td>
+            <td class="actions">${['pending', 'active'].includes(m.status) ? `<button class="btn btn-ghost btn-sm" type="button" data-action="ap-stop" data-id="${m.id}">Stop</button>` : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>` : ''}
+      <p class="hint card-pad" style="margin:0">Money goes straight from the tenant’s bank to your own Ozow or Netcash account. Only the month’s rent is collected, never more than the tenant approved and never before the due date. DebiCheck collections show “sent to bank” until they clear; mark the month paid on the Rent page when it reaches your account.</p>
+    </section>`;
+}
+
 function render() {
-  view.innerHTML = `<div class="billing-grid">${ozowCard()}${planCard()}${invoicesCard()}</div>`;
+  view.innerHTML = `<div class="billing-grid">${ozowCard()}${planCard()}${autopayCard()}${invoicesCard()}</div>`;
+}
+
+function apSettings() {
+  const st = ap.settings;
+  openModal({ title: 'Automatic payments and reminders', submitLabel: 'Save',
+    body: `<label class="check"><input type="checkbox" name="ozow_capitec" ${st.ozow_capitec ? 'checked' : ''} ${d.ozow ? '' : 'disabled'}> Capitec Pay recurring (through your Ozow account)</label>
+      <p class="hint" style="margin:4px 0 14px 24px">${d.ozow ? 'Ask Ozow (support@ozow.com) to switch on recurring payments for your account first.' : 'Connect Ozow first.'}</p>
+      <label class="check"><input type="checkbox" name="netcash" ${st.netcash ? 'checked' : ''}> DebiCheck debit orders (through your Netcash account)</label>
+      <div class="field" style="margin:8px 0 0 24px"><label for="nc-key">Netcash debit order service key${st.netcash_hint ? ` <span class="muted">(saved, ends ${esc(st.netcash_hint)}; leave empty to keep)</span>` : ''}</label>
+        <input id="nc-key" name="netcash_key" type="password" autocomplete="off" spellcheck="false"></div>
+      <label class="check" style="margin-top:14px"><input type="checkbox" name="reminders" ${st.reminders !== false ? 'checked' : ''}> Email rent reminders to tenants</label>`,
+    async onSubmit(form) { await api.saveAutopay(formData(form)); toast('Saved'); await refresh(); } });
+}
+function apDebicheck() {
+  openModal({ title: 'Add a DebiCheck debit order', submitLabel: 'Add',
+    body: `<ol class="hint" style="padding-left:18px;margin:0 0 14px;line-height:1.55"><li>In Netcash, add the tenant as a debit order client and send them a DebiCheck mandate (eMandate).</li>
+        <li>When their bank confirms they approved it, copy the mandate reference here.</li></ol>
+      <div class="field"><label for="dc-lease">Tenant</label><select id="dc-lease" name="lease_id">${ap.leases.map(l => `<option value="${l.id}">${esc(l.tenant?.full_name || 'Tenant')} · ${esc(l.unit?.label || '')}</option>`).join('')}</select></div>
+      <div class="grid-2"><div class="field"><label for="dc-ref">DebiCheck mandate reference</label><input id="dc-ref" name="mandate_ref" required maxlength="50"></div>
+      <div class="field"><label for="dc-acc">Netcash account reference</label><input id="dc-acc" name="account_ref" required maxlength="22"></div></div>
+      <div class="field"><label for="dc-max">Maximum the tenant approved (R)</label><input id="dc-max" name="max" type="number" min="1" step="0.01" required></div>`,
+    async onSubmit(form) { await api.addDebicheck(formData(form)); toast('Debit order added'); await refresh(); } });
 }
 
 async function refresh() {
-  try { d = await api.overview(); render(); }
+  try { d = await api.overview(); ap = await api.autopay().catch(() => null); render(); }
   catch (ex) { view.innerHTML = `<div class="card card-pad"><p class="muted">${esc(ex.message)}</p></div>`; }
 }
 
@@ -153,6 +203,11 @@ view.addEventListener('click', async e => {
   try {
     if (action === 'ozow') connectForm();
     if (action === 'plan') planForm();
+    if (action === 'ap-settings') apSettings();
+    if (action === 'ap-debicheck') apDebicheck();
+    if (action === 'ap-stop' && await confirmDialog('Stop automatic payments?', 'Nothing more is collected for this tenant. They can set it up again later.', 'Stop')) {
+      await api.stopMandate(id); toast('Stopped'); await refresh();
+    }
     if (action === 'toggle') {
       await api.saveOzow({ site_code: d.ozow.site_code, is_test: d.ozow.is_test, enabled: !d.ozow.enabled });
       toast(d.ozow.enabled ? 'Online payments switched off' : 'Online payments switched on'); await refresh();

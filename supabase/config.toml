@@ -14,3 +14,12 @@ verify_jwt = true
 [functions.ozow-reconcile]
 # Called on a schedule with the public anon key; throttled and returns counts only.
 verify_jwt = true
+
+[functions.autopay-setup]
+verify_jwt = true
+[functions.autopay-check]
+verify_jwt = true
+[functions.autopay-run]
+verify_jwt = true
+[functions.rent-reminders]
+verify_jwt = true

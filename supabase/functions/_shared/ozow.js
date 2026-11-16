@@ -20,14 +20,14 @@ export function newReference() {
 export const TX_STATUS = { successful: 'Complete', incomplete: 'Cancelled', error: 'Error', pending: 'Pending' };
 
 const tokens = new Map();   // per client, reused while valid
-export async function getToken({ base, clientId, clientSecret, fetchImpl = fetch, now = Date.now }) {
-  const key = `${base}|${clientId}`;
+export async function getToken({ base, clientId, clientSecret, scope = 'payments', fetchImpl = fetch, now = Date.now }) {
+  const key = `${base}|${clientId}|${scope}`;
   const hit = tokens.get(key);
   if (hit && hit.until > now()) return hit.token;
   const res = await fetchImpl(`${base}/v1/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: 'payments', grant_type: 'client_credentials' }).toString(),
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope, grant_type: 'client_credentials' }).toString(),
   });
   if (!res.ok) throw new OzowError(res.status === 400 || res.status === 401 ? 'Ozow rejected the Client ID or Client Secret.' : `Ozow sign-in failed (${res.status}).`, res.status);
   const j = await res.json();
@@ -89,3 +89,50 @@ export function mismatches(out, op, siteCode) {
   if (Math.round(Number(out.amount) * 100) !== Math.round(Number(op.amount) * 100)) bad.push(`amount ${out.amount} (expected ${op.amount})`);
   return bad;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Recurring payments (Beta): Capitec Pay variable recurring payments. Needs the `subscriptions`
+// scope and recurring payments switched on for the merchant by Ozow.
+//   POST /v1/subscriptions                       consent request -> { subscriptionId, status, redirectUrl }
+//   GET  /v1/subscriptions/{id}                  status: PendingAuthorization | Active | Canceled | Completed | Expired | Failed
+//   POST /v1/subscriptions/{id}/transactions     merchant-initiated collection within the authorised band
+//   GET  /v1/subscriptions/{id}/transactions     collections: Pending | Successful | Failed
+//   POST /v1/subscriptions/{id}/cancel           final; also cancels the consent at Capitec
+// ---------------------------------------------------------------------------------------------
+export const SUB_STATUS = { pendingauthorization: 'pending', active: 'active', canceled: 'cancelled', cancelled: 'cancelled',
+  completed: 'completed', expired: 'expired', failed: 'failed' };
+
+export function subscriptionBody({ siteCode, amount, maxAmount, reference, bankRef, description, firstPaymentDate }) {
+  const max = Math.min(100000, Math.ceil(Number(maxAmount)));
+  return {
+    siteCode,
+    paymentMethod: 'capitec',
+    amount: { currency: 'ZAR', value: Math.min(Math.round(Number(amount) * 100) / 100, max) },
+    amountConstraints: { min: 1, max },
+    description: String(description || 'Rent').replace(/[^A-Za-z0-9 .-]/g, '').slice(0, 20) || 'Rent',
+    merchantReference: String(reference).replace(/\s/g, '').slice(0, 50),
+    bankReference: bankReference(bankRef),
+    frequency: 'Monthly',
+    firstPaymentDate,
+    occurrences: 120,
+  };
+}
+
+async function call(fetchImpl, url, token, method = 'GET', body) {
+  const res = await fetchImpl(url, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json', 'Idempotency-Key': body.merchantReference || '' } : {}) },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new OzowError(j.detail || j.title || j.message || `Ozow answered ${res.status}.`, res.status);
+  return j;
+}
+export const createSubscription = ({ base, token, body, fetchImpl = fetch }) =>
+  call(fetchImpl, `${base}/v1/subscriptions`, token, 'POST', body).then(j => ({ id: j.subscriptionId || j.id, status: j.status, redirectUrl: j.redirectUrl }));
+export const getSubscription = ({ base, token, id, fetchImpl = fetch }) =>
+  call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}`, token).then(j => ({ ...j, mapped: SUB_STATUS[String(j.status || '').toLowerCase()] || null }));
+export const chargeSubscription = ({ base, token, id, amount, reference, fetchImpl = fetch }) =>
+  call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}/transactions`, token, 'POST',
+    { amount: { currency: 'ZAR', value: Math.round(Number(amount) * 100) / 100 }, merchantReference: reference });
+export const subscriptionTransactions = ({ base, token, id, fetchImpl = fetch }) =>
+  call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}/transactions`, token).then(j => j.results || j.value || (Array.isArray(j) ? j : []));
+export const cancelSubscription = ({ base, token, id, fetchImpl = fetch }) =>
+  call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}/cancel`, token, 'POST', { merchantReference: '' });

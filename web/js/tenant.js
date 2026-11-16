@@ -95,36 +95,40 @@ const paidLate = (p, lease) => p.paid_at && startOfDay(new Date(p.paid_at)) > du
 // State and rendering
 // ---------------------------------------------------------------------------
 const view = document.getElementById('t-view');
-let data, requests = [], messages = [], leaseDocs = [], inspections = [];
+let data, requests = [], messages = [], leaseDocs = [], inspections = [], autopay = null;
 // A new tenant whose lease is still out for signing has nothing else to see yet: Lease tab only.
-let limited = false;
+let limited = false, canMessage = false;
 
 async function loadAll() {
   try {
     [data, requests, messages] = await Promise.all([api.home(), api.maintenance(), api.messages()]);
     limited = false;
   } catch (ex) {
+    // No active lease yet (e.g. still a draft): keep the app usable for the Lease and Messages tabs.
     leaseDocs = await docs.leaseDocs().catch(() => []);
-    if (!leaseDocs.length) throw ex;
+    if (!leaseDocs.length && !ex.partial) throw ex;
     limited = true;
-    data = { tenant: { full_name: leaseDocs[0].body?.parties?.tenant?.name || '' } };
+    canMessage = Boolean(ex.partial?.tenant?.id);
+    data = ex.partial ? { ...ex.partial, payments: [] } : { tenant: { full_name: leaseDocs[0].body?.parties?.tenant?.name || '' }, payments: [] };
+    messages = canMessage ? await api.messages().catch(() => []) : [];
     return;
   }
   // These need database update 006; until it is installed the rest of the app still works.
   [leaseDocs, inspections] = await Promise.all([docs.leaseDocs().catch(() => []), docs.inspections().catch(() => [])]);
+  autopay = await Promise.resolve().then(() => api.autopay(data.lease.id)).catch(() => null);   // needs database update 015
 }
 
 const hashParts = () => location.hash.slice(1).split('/');
 function currentTab() {
-  if (limited) return 'lease';
   const t = hashParts()[0];
+  if (limited) return canMessage && t === 'messages' ? 'messages' : 'lease';
   return TABS.some(x => x.id === t) ? t : 'home';
 }
 
 function render() {
   const tab = currentTab();
   tabsEl.querySelectorAll('a').forEach(a => a.setAttribute('aria-current', a.dataset.tab === tab ? 'page' : 'false'));
-  tabsEl.querySelectorAll('a').forEach(a => a.classList.toggle('hidden', limited && a.dataset.tab !== 'lease'));
+  tabsEl.querySelectorAll('a').forEach(a => a.classList.toggle('hidden', limited && !(a.dataset.tab === 'lease' || (canMessage && a.dataset.tab === 'messages'))));
   const openCount = requests.filter(r => !['resolved', 'closed'].includes(r.status)).length;
   tabsEl.querySelector('[data-tab="repairs"] .t-dot').classList.toggle('hidden', !openCount);
   const due = (data.payments || []).find(p => p.status !== 'paid' && p.status !== 'refunded');
@@ -234,6 +238,68 @@ function homeView() {
 const ordinal = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
 const statusTone = s => ({ open: 'soon', assigned: 'info', in_progress: 'info', resolved: 'ok', closed: 'muted' }[s]);
 
+const PROVIDER = { ozow_capitec: 'Capitec Pay (automatic)', netcash_debicheck: 'DebiCheck debit order' };
+function autopayCard() {
+  if (!autopay) return '';
+  const { options, mandate: m } = autopay;
+  const live = m && ['pending', 'active'].includes(m.status);
+  if (!live && !options.ozow_capitec && !options.netcash) return '';
+  const last = (m?.mandate_collections || []).sort((a, b) => String(b.period_month).localeCompare(a.period_month))[0];
+  let body;
+  if (m?.status === 'active') body = `
+      <p style="margin:0"><span class="pill pill-ok">${ico.check}On</span> ${esc(PROVIDER[m.provider])}. Rent is collected on the ${ordinal(data.lease.rent_due_day)}, up to the
+        <b>${money(m.max_amount)}</b> you approved. You get a receipt here each month.</p>
+      ${last ? `<p class="muted" style="margin:8px 0 0;font-size:13px">Last collection: ${monthName(last.period_month)}, ${money(last.amount)} · ${{ successful: 'paid', failed: 'didn’t go through', pending: 'in progress', submitted: 'sent to your bank' }[last.status]}</p>` : ''}
+      <button class="btn btn-ghost btn-sm" type="button" data-action="autopay-stop" data-id="${m.id}" style="margin-top:12px">Stop automatic payments</button>`;
+  else if (m?.status === 'pending') body = `
+      <p style="margin:0"><span class="pill pill-soon">Waiting</span> Approve the request in your Capitec app. It expires after 3 minutes.</p>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-action="autopay-check" data-id="${m.id}">I’ve approved it</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="autopay-stop" data-id="${m.id}">Cancel</button></div>`;
+  else body = `
+      <p style="margin:0">Pay rent automatically each month, so it’s never late.${m?.status === 'cancelled' ? ' <span class="muted">(Stopped ' + shortDate(new Date(m.cancelled_at)) + ')</span>' : ''}</p>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        ${options.ozow_capitec ? '<button class="btn btn-sm" type="button" data-action="autopay-capitec">Set up with Capitec Pay</button>' : ''}
+        ${options.netcash ? '<button class="btn btn-ghost btn-sm" type="button" data-action="autopay-debicheck">DebiCheck debit order (any bank)</button>' : ''}
+      </div>`;
+  return `<section class="card card-pad" aria-labelledby="ap-h"><h2 id="ap-h" style="margin:0 0 10px">Automatic payments</h2>${body}</section>`;
+}
+
+function autopayCapitec() {
+  const rent = currentRent(data.lease);
+  const suggest = Math.ceil(rent * 1.1 / 100) * 100;
+  openModal({
+    title: 'Pay rent automatically with Capitec Pay', submitLabel: 'Continue to approve',
+    body: `<p style="margin-top:0">Your rent is collected from your Capitec account on the ${ordinal(data.lease.rent_due_day)} of each month and paid straight to ${esc(data.landlord.full_name)}.</p>
+      <div class="field"><label for="ap-max">Most that may be taken in a month (R)</label>
+        <input id="ap-max" name="max" type="number" min="${Math.ceil(rent)}" max="100000" step="1" value="${suggest}">
+        <span class="hint">At least your rent (${money(rent)}). Leave a little room for the yearly increase. Never more than this is taken.</span></div>
+      <ul class="hint" style="padding-left:18px;margin:10px 0 0;line-height:1.55"><li>You approve it once in your Capitec app.</li>
+        <li>Stop it any time here or in the Capitec app.</li><li>Only what you owe for the month is taken, never early.</li></ul>`,
+    async onSubmit(form) {
+      const max = Number(form.max.value);
+      if (!(max >= Math.ceil(rent))) throw new Error(`Choose at least ${money(rent)}.`);
+      const r = await api.setupAutopay(data.lease.id, max);
+      if (r.redirectUrl) window.open(r.redirectUrl, '_blank', 'noopener');
+      await refresh();
+      toast(r.demo ? 'Automatic payments are on (demo).' : 'Approve the request in your Capitec app, then tap “I’ve approved it”.');
+      if (!r.demo) pollAutopay(r.mandate_id);
+    },
+  });
+}
+async function pollAutopay(id) {
+  for (let i = 0; i < 24; i++) {
+    await new Promise(r => setTimeout(r, 7500));
+    const st = await api.checkAutopay(id).catch(() => 'pending');
+    if (st !== 'pending') { await refresh(); toast(st === 'active' ? 'Automatic payments are on. Thank you!' : 'The approval didn’t go through. You can try again.', st === 'active' ? undefined : 'error'); return; }
+  }
+}
+function autopayDebicheck() {
+  openModal({ title: 'DebiCheck debit order', submitLabel: 'Done', cancel: false,
+    body: `<p style="margin-top:0">${esc(data.landlord.full_name)} sets up DebiCheck debit orders through their bank partner. Message them to ask for one: your bank will then send you a request to approve in your banking app or by USSD.</p>
+      <p class="muted">Once approved, your landlord adds it here and your rent is debited on the due date each month.</p>`,
+    async onSubmit() {} });
+}
+
 function paymentsView() {
   const { payments, lease } = data;
   const paid = payments.filter(p => p.status === 'paid');
@@ -243,6 +309,7 @@ function paymentsView() {
     <div class="t-hello"><h1>Rent</h1><p class="muted">${money(lease.monthly_rent)} a month, due on the ${ordinal(lease.rent_due_day)}.</p></div>
     <div class="t-grid">
       ${rentCard()}
+      ${autopayCard()}
       <section class="card card-pad t-stats">
         <div><div class="label">Paid since you moved in</div><div class="value num">${money(total)}</div></div>
         <div><div class="label">On time</div><div class="value num">${onTime} of ${paid.length}</div></div>
@@ -500,6 +567,12 @@ function newRequest() {
   urg.addEventListener('change', () => document.getElementById('r-emergency').classList.toggle('hidden', urg.value !== 'urgent'));
 }
 
+async function confirmStop(id) {
+  openModal({ title: 'Stop automatic payments?', submitLabel: 'Stop', danger: true,
+    body: '<p style="margin:0">Nothing more is collected from now on. Remember to pay your rent another way.</p>',
+    async onSubmit() { await api.stopAutopay(id); await refresh(); toast('Automatic payments stopped'); } });
+}
+
 async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); toast('Copied'); }
   catch {
@@ -523,6 +596,10 @@ view.addEventListener('click', e => {
   const { action, id } = a.dataset;
   if (action === 'new-inspection') newInspection();
   if (action === 'pay') payFlow(id);
+  if (action === 'autopay-capitec') autopayCapitec();
+  if (action === 'autopay-debicheck') autopayDebicheck();
+  if (action === 'autopay-check') api.checkAutopay(id).then(async st => { await refresh(); toast(st === 'active' ? 'Automatic payments are on.' : st === 'pending' ? 'Not approved yet. Check your Capitec app.' : 'That request expired. You can start again.'); });
+  if (action === 'autopay-stop') confirmStop(id);
   if (action === 'receipt') receipt(id);
   if (action === 'tax-statement') taxStatement();
   if (action === 'new-request') { e.preventDefault(); if (currentTab() !== 'repairs') location.hash = 'repairs'; newRequest(); }

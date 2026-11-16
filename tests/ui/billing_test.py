@@ -91,6 +91,24 @@ with sync_playwright() as pw:
     page.goto(f"{BASE}/admin.html")
     expect(page.locator("#view")).to_contain_text("live system only")
 
+    # Automatic payments: owner switches them on (Ozow already connected above), tenant sets up Capitec Pay
+    page.goto(f"{BASE}/billing.html")
+    expect(page.locator("#ap-h")).to_be_visible()
+    page.locator("[data-action=ap-settings]").click()
+    page.locator(".modal input[name=ozow_capitec]").check()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator(".modal")).to_have_count(0)
+    expect(page.locator("#ap-h").locator("../..")).to_contain_text("Tenants with Capitec")
+    page.goto(f"{BASE}/tenant.html#payments")
+    expect(page.locator("#ap-h")).to_be_visible()
+    page.locator("[data-action=autopay-capitec]").click()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator("#ap-h").locator("..")).to_contain_text("On")
+    page.screenshot(path=str(SHOTS / "tenant-autopay.png"), full_page=True)
+    page.locator("[data-action=autopay-stop]").click()
+    page.locator(".modal [type=submit]").click()
+    expect(page.locator("[data-action=autopay-capitec]")).to_be_visible()
+
     # Help guide covers it
     page.goto(f"{BASE}/help.html")
     expect(page.locator("#owners")).to_contain_text("Let tenants pay rent online")

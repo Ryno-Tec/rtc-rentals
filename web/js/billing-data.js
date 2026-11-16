@@ -26,6 +26,25 @@ const live = {
       usage: { units: units.count ?? 0, properties: props.count ?? 0 } };
   },
   async changePlan(tier) { const sb = await client(); check(await sb.rpc('change_my_plan', { p_tier: tier })); },
+  async autopay() {
+    const sb = await client();
+    const [set, mandates, leases, admin] = await Promise.all([
+      sb.from('autopay_settings').select('*').maybeSingle(),
+      sb.from('payment_mandates').select('id, lease_id, provider, status, max_amount, created_at, activated_at, cancelled_at, mandate_collections(period_month, amount, status)').order('created_at', { ascending: false }),
+      sb.from('leases').select('id, status, tenant:tenants(full_name), unit:units(label)').in('status', ['signed', 'active']),
+      sb.rpc('is_account_admin')]);
+    if (set.error?.code === '42P01') return null;                        // database update 015 not installed yet
+    return { settings: set.data || { ozow_capitec: false, netcash: false, reminders: true }, mandates: check(mandates), leases: check(leases), isAdmin: admin.data !== false };
+  },
+  async saveAutopay(v) {
+    const sb = await client();
+    check(await sb.rpc('save_autopay_settings', { p_ozow_capitec: !!v.ozow_capitec, p_netcash: !!v.netcash, p_netcash_service_key: v.netcash_key || '', p_reminders: v.reminders !== false }));
+  },
+  async addDebicheck(v) {
+    const sb = await client();
+    check(await sb.rpc('add_debicheck_mandate', { p_lease: v.lease_id, p_mandate_ref: v.mandate_ref, p_account_ref: v.account_ref, p_max: Number(v.max) }));
+  },
+  async stopMandate(id) { const sb = await client(); check(await sb.rpc('cancel_mandate', { p_mandate: id })); },
   async saveOzow(v) {
     const sb = await client();
     check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_client_id: v.client_id || '', p_client_secret: v.client_secret || '',
@@ -36,7 +55,7 @@ const live = {
 };
 
 // Demo: kept with the shared sample data in this browser.
-const { load, save, emit } = demoStore;
+const { load, save, emit, uid } = demoStore;
 function billing(s) {
   if (!s.billing) {
     const m = new Date(); m.setDate(1); m.setMonth(m.getMonth() - 1);
@@ -67,6 +86,31 @@ const demo = {
       if (s.properties.length > to.max_properties) throw new DataError(`The ${to.display_name} plan allows ${to.max_properties} properties and you have ${s.properties.length}. Remove some first.`);
     }
     s.profile.tier = tier; save(s); emit();
+  },
+  async autopay() {
+    const s = load(), b = billing(s);
+    b.autopay = b.autopay || { ozow_capitec: false, netcash: false, reminders: true };
+    const leases = (s.leases || []).filter(l => ['signed', 'active'].includes(l.status)).map(l => ({ id: l.id, status: l.status,
+      tenant: s.tenants.find(t => t.id === l.tenant_id), unit: s.units.find(u => u.id === l.unit_id) }));
+    return { settings: b.autopay, mandates: (s.mandates || []).map(m => ({ ...m, mandate_collections: m.mandate_collections || [] })), leases, isAdmin: true };
+  },
+  async saveAutopay(v) {
+    const s = load(), b = billing(s);
+    if (v.ozow_capitec && !b.ozow) throw new DataError('Connect Ozow first (Online rent payments)');
+    if (v.netcash && !v.netcash_key && !(b.autopay?.netcash_hint)) throw new DataError('Enter your Netcash debit order service key');
+    b.autopay = { ozow_capitec: !!v.ozow_capitec, netcash: !!v.netcash, reminders: v.reminders !== false, netcash_hint: v.netcash_key ? v.netcash_key.slice(-4) : b.autopay?.netcash_hint };
+    save(s); emit();
+  },
+  async addDebicheck(v) {
+    const s = load(); s.mandates = s.mandates || [];
+    if (!/^[A-Za-z0-9-]{4,50}$/.test(v.mandate_ref || '')) throw new DataError('Enter the DebiCheck mandate reference from Netcash');
+    if (s.mandates.some(m => m.lease_id === v.lease_id && ['pending', 'active'].includes(m.status))) throw new DataError('That tenant already has automatic payments.');
+    s.mandates.push({ id: uid(), lease_id: v.lease_id, provider: 'netcash_debicheck', status: 'active', max_amount: Number(v.max), created_at: new Date().toISOString(), mandate_collections: [] });
+    save(s); emit();
+  },
+  async stopMandate(id) {
+    const s = load(); const m = (s.mandates || []).find(x => x.id === id);
+    if (m) Object.assign(m, { status: 'cancelled', cancelled_at: new Date().toISOString() }); save(s); emit();
   },
   async saveOzow(v) {
     const s = load(), b = billing(s);

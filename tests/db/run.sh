@@ -25,4 +25,5 @@ for m in "$ROOT"/supabase/migrations/*.sql; do "${PSQL[@]}" -f "$m"; done
 "${PSQL[@]}" -f "$ROOT/tests/db/test_dual_role.sql"
 "${PSQL[@]}" -f "$ROOT/tests/db/test_payments.sql"
 "${PSQL[@]}" -f "$ROOT/tests/db/test_tenants_plans_admin.sql"
+"${PSQL[@]}" -f "$ROOT/tests/db/test_autopay_agency.sql"
 "${PSQL[@]}" -f "$ROOT/tests/db/test_cleanup.sql"
