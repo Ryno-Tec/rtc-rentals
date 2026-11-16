@@ -203,10 +203,10 @@ function printable(title, inner) {
   if (!w) { toast('Allow pop-ups for this site to open the document.', 'error'); return; }
   w.document.write(`<!doctype html><html lang="en-ZA"><head><meta charset="utf-8"><title>${esc(title)}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;max-width:720px;margin:32px auto;padding:0 20px}
-    h1{font-size:22px;margin:0 0 4px}.muted{color:#64748b}table{width:100%;border-collapse:collapse;margin-top:16px}
-    th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #e2e8f0}td.r,th.r{text-align:right}.total td{font-weight:700;border-top:2px solid #0f172a}
-    .head{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid #1d4ed8;padding-bottom:12px;margin-bottom:16px}
+    <style>body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;max-width:720px;margin:32px auto;padding:0 20px}
+    h1{font-size:22px;margin:0 0 4px}.muted{color:#6f665f}table{width:100%;border-collapse:collapse;margin-top:16px}
+    th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #ebe5df}td.r,th.r{text-align:right}.total td{font-weight:700;border-top:2px solid #1a1a1a}
+    .head{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid #ff6b35;padding-bottom:12px;margin-bottom:16px}
     .print{margin-top:24px}@media print{.print{display:none}body{margin:0}}</style></head><body>${inner}
     <p class="print"><button onclick="print()">Print or save as PDF</button></p></body></html>`);
   w.document.close();

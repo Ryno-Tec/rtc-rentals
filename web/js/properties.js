@@ -22,7 +22,7 @@ function renderUsage() {
   if (!lim?.max_units) { el.innerHTML = lim ? `${esc(lim.display_name)} plan · unlimited units` : ''; return; }
   const ratio = Math.min(used / lim.max_units, 1);
   el.innerHTML = `<span><b class="num">${used}</b> of ${lim.max_units} units on ${esc(lim.display_name)}</span>
-    <div class="meter" aria-hidden="true"><span style="width:${ratio * 100}%;background:${ratio >= 1 ? 'var(--red)' : 'var(--blue)'}"></span></div>`;
+    <div class="meter" aria-hidden="true"><span style="width:${ratio * 100}%;background:${ratio >= 1 ? 'var(--red)' : 'var(--accent)'}"></span></div>`;
 }
 
 function matches(p, u, q, st) {
