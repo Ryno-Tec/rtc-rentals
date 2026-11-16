@@ -37,7 +37,7 @@ h3 { font-size: 14px; font-weight: 600; }
 
 /* ---------- Brand mark ---------- */
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: #1a1a1a; display: grid; place-items: center; flex-shrink: 0; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: #ff6b35; display: grid; place-items: center; flex-shrink: 0; }
 .brand-mark svg { width: 24px; height: 24px; }
 .brand small { display: block; font-weight: 450; font-size: 11px; color: var(--muted); letter-spacing: .02em; }
 
