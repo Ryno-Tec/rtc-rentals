@@ -152,3 +152,20 @@ do $$ begin assert (select count(*) from public.ozow_accounts) = 0, 'disconnecte
 reset role;
 do $$ begin assert (select count(*) from public.ozow_secrets where landlord_id = current_setting('test.zl')::uuid) = 0, 'key gone'; end $$;
 select 'payments tests passed';
+-- 013: event log is server-only; reconciliation is throttled
+set role authenticated;
+do $$ begin
+  begin perform * from public.payment_events; raise exception 'expected: events hidden';
+  exception when insufficient_privilege then null; end;
+  begin perform public.claim_reconcile(false, 30); raise exception 'expected: server only';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role service_role;
+do $$ begin
+  assert public.claim_reconcile(false, 30), 'first run claims';
+  assert not public.claim_reconcile(false, 30), 'second run within 30 min is refused';
+  assert public.claim_reconcile(true, 600), 'full run is separate';
+end $$;
+reset role;
+select 'payment check log tests passed';

@@ -1,8 +1,16 @@
-// Works out who an online payment belongs to, asks Ozow how it went, and records the result.
-// Used by ozow-notify (Ozow calls it) and ozow-check (the browser asks after coming back).
-import { ozowBase, getToken, paymentOutcome } from './ozow.js';
+// Works out who an online payment belongs to, asks Ozow how it went, checks it matches what was
+// asked for, and records the result. Anything odd is written to payment_events (alerts).
+// Used by ozow-notify, ozow-check (the browser on return) and ozow-reconcile (scheduled).
+import { ozowBase, getToken, paymentOutcome, mismatches } from './ozow.js';
 
 const env = k => globalThis.Deno?.env.get(k) ?? '';
+const EXPIRY_MINUTES = 70;      // payments are created to expire after 60 minutes
+
+export async function logEvent(admin, kind, op, detail = {}, alert = true) {
+  try {
+    await admin.from('payment_events').insert({ kind, alert, reference: op?.reference ?? null, landlord_id: op?.landlord_id ?? null, detail });
+  } catch { /* logging must never break a payment */ }
+}
 
 export async function credentialsFor(admin, kind, landlordId) {
   if (kind === 'invoice') {
@@ -18,19 +26,49 @@ export async function credentialsFor(admin, kind, landlordId) {
   return { siteCode: a.site_code, clientId: s.client_id, clientSecret: s.client_secret, isTest: a.is_test, enabled: a.enabled };
 }
 
+async function outcomeFor(admin, op) {
+  const c = await credentialsFor(admin, op.kind, op.landlord_id);
+  if (!c) { await logEvent(admin, 'credentials', op, { note: 'Ozow connection missing; cannot check this payment' }); return { c: null, out: null }; }
+  const base = ozowBase(c.isTest);
+  const token = await getToken({ base, clientId: c.clientId, clientSecret: c.clientSecret });
+  return { c, out: await paymentOutcome({ base, token, paymentId: op.ozow_payment_id, since: op.created_at }) };
+}
+
 // Returns the payment's status after checking with Ozow.
 export async function settle(admin, op) {
   if (op.status === 'complete' || !op.ozow_payment_id) return op.status;
-  const c = await credentialsFor(admin, op.kind, op.landlord_id);
+  let c, out;
+  try { ({ c, out } = await outcomeFor(admin, op)); }
+  catch (e) { await logEvent(admin, 'check_failed', op, { error: String(e?.message || e) }); throw e; }
   if (!c) return op.status;
-  const base = ozowBase(c.isTest);
-  const token = await getToken({ base, clientId: c.clientId, clientSecret: c.clientSecret });
-  const out = await paymentOutcome({ base, token, paymentId: op.ozow_payment_id, since: op.created_at });
-  if (!out) return op.status;
+  if (!out || !out.status) {
+    // Nothing finished at Ozow. Once the payment has expired, close it so it stops being re-checked.
+    if (!out && Date.now() - new Date(op.created_at).getTime() > EXPIRY_MINUTES * 60000 && ['started', 'pending'].includes(op.status)) {
+      await admin.from('online_payments').update({ status: 'abandoned' }).eq('id', op.id).in('status', ['started', 'pending']);
+      await logEvent(admin, 'expired', op, { note: 'Payer never finished at Ozow' }, false);
+      return 'abandoned';
+    }
+    return op.status;
+  }
+  let status = out.status;
+  if (status === 'Complete') {
+    const bad = mismatches(out, op, c.siteCode);
+    if (bad.length) { await logEvent(admin, 'mismatch', op, { problems: bad, transaction: out.raw }); status = 'PendingInvestigation'; }
+  }
   const { data, error } = await admin.rpc('complete_online_payment', {
-    p_reference: op.reference, p_status: out.status, p_transaction_id: out.transactionId,
+    p_reference: op.reference, p_status: status, p_transaction_id: out.transactionId,
     p_amount: out.amount, p_is_test: c.isTest, p_raw: out.raw,
   });
-  if (error) throw error;
+  if (error) { await logEvent(admin, 'check_failed', op, { error: error.message }); throw error; }
   return data;
+}
+
+// Full reconciliation: a payment we hold as complete must be Successful at Ozow, for the same amount.
+export async function verifyComplete(admin, op) {
+  if (op.status !== 'complete' || !op.ozow_payment_id) return true;
+  const { c, out } = await outcomeFor(admin, op);
+  if (!c) return false;
+  const fine = out?.status === 'Complete' && !mismatches(out, op, c.siteCode).length;
+  if (!fine) await logEvent(admin, 'reconcile_mismatch', op, { ozow: out?.raw ?? null, note: 'Recorded as paid here, but Ozow’s record differs' });
+  return fine;
 }

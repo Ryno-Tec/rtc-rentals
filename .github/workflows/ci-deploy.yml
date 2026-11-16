@@ -74,6 +74,7 @@ jobs:
           npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
           npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
           npx -y supabase@latest functions deploy ozow-check --yes --project-ref "$REF" --use-api
+          npx -y supabase@latest functions deploy ozow-reconcile --yes --project-ref "$REF" --use-api
           # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
           # rentals.ryno-tec.co.za; RTC_OZOW_IS_TEST=true only for Ozow staging credentials.
           if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then

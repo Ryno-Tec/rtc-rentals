@@ -1,6 +1,6 @@
 // Ozow One API client: token caching, payment body, outcome mapping. Run: node tests/ozow/ozow.test.mjs
 import assert from 'node:assert/strict';
-import { ozowBase, bankReference, newReference, getToken, paymentBody, createPayment, paymentOutcome, OzowError } from '../../supabase/functions/_shared/ozow.js';
+import { ozowBase, bankReference, newReference, getToken, paymentBody, createPayment, paymentOutcome, mismatches, OzowError } from '../../supabase/functions/_shared/ozow.js';
 
 const calls = [];
 const fake = routes => async (url, opts = {}) => {
@@ -63,6 +63,15 @@ o = await paymentOutcome({ base: 'B', token: 't', paymentId: 'p', since, now: at
   { id: 't1', status: 'Error', amount: { value: 1 }, createdDate: '2026-11-16T09:01:00Z' },
   { id: 't3', status: 'incomplete', amount: { value: 1 }, createdDate: '2026-11-16T09:09:00Z' }]) });
 assert.equal(o.status, 'Cancelled', 'latest attempt, case-insensitive');
-assert.equal(await paymentOutcome({ base: 'B', token: 't', paymentId: 'p', since, now: at, fetchImpl: tx([{ id: 'r', status: 'Refunded', createdDate: 'x' }]) }), null);
+assert.equal((await paymentOutcome({ base: 'B', token: 't', paymentId: 'p', since, now: at, fetchImpl: tx([{ id: 'r', status: 'Refunded', createdDate: 'x' }]) })).status, null, 'refunded: no change');
+
+// Matching what we asked for
+const op = { reference: 'RTCX', amount: 4500 };
+const good = { currency: 'ZAR', merchantReference: 'RTCX', siteCode: 'ABC-ABC-001', amount: 4500 };
+assert.deepEqual(mismatches(good, op, 'abc-abc-001'), []);
+assert.equal(mismatches({ ...good, currency: 'USD' }, op, 'ABC-ABC-001').length, 1);
+assert.equal(mismatches({ ...good, merchantReference: 'OTHER' }, op, 'ABC-ABC-001').length, 1);
+assert.equal(mismatches({ ...good, siteCode: 'XYZ-XYZ-999' }, op, 'ABC-ABC-001').length, 1);
+assert.equal(mismatches({ ...good, amount: 4499.99 }, op, 'ABC-ABC-001').length, 1);
 
 console.log('Ozow One API tests passed');

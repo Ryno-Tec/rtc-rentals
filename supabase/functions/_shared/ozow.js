@@ -75,6 +75,17 @@ export async function paymentOutcome({ base, token, paymentId, since, fetchImpl 
   const ok = list.find(t => String(t.status).toLowerCase() === 'successful');
   const t = ok || [...list].sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate)))[0];
   const status = TX_STATUS[String(t.status).toLowerCase()];
-  if (!status) return null;                                        // e.g. Refunded: leave as is
-  return { status, transactionId: t.id, amount: Number(t.amount?.value), reason: t.reason || null, raw: t };
+  if (!status) return { status: null, raw: t };                    // e.g. Refunded: leave as is
+  return { status, transactionId: t.id, amount: Number(t.amount?.value), currency: t.amount?.currency ?? null,
+    merchantReference: t.merchantReference ?? null, siteCode: t.siteCode ?? null, reason: t.reason || null, raw: t };
+}
+
+// Does Ozow's transaction match what we asked for? Returns the problems found (empty = fine).
+export function mismatches(out, op, siteCode) {
+  const bad = [];
+  if (String(out.currency || '').toUpperCase() !== 'ZAR') bad.push(`currency ${out.currency}`);
+  if (out.merchantReference !== op.reference) bad.push(`reference ${out.merchantReference}`);
+  if (siteCode && out.siteCode && String(out.siteCode).toLowerCase() !== String(siteCode).toLowerCase()) bad.push(`site ${out.siteCode}`);
+  if (Math.round(Number(out.amount) * 100) !== Math.round(Number(op.amount) * 100)) bad.push(`amount ${out.amount} (expected ${op.amount})`);
+  return bad;
 }

@@ -24,3 +24,29 @@ Ozow One API (`one.ozow.com`; staging `stagingone.ozow.com`): Client ID + Client
 - `ozow-notify` – Ozow's notify URL; only finds the payment, then asks Ozow's API for the outcome.
 - `ozow-check` – the browser calls it after returning from Ozow; same check, for the person who started the payment.
 `complete_online_payment` is idempotent; an amount mismatch is flagged `pending_investigation`; staging payments never touch the rent ledger.
+
+## Checks, alerts and reconciliation
+- Every result is read from Ozow's API and must match what was asked for: currency ZAR, our merchant reference,
+  the site code and the amount. Anything else is held as `pending_investigation` and logged.
+- `payment_events` (server-only table) logs: unknown references on the notify address, failed checks, mismatches,
+  missing credentials, reconciliation differences, and (as non-alerts) payments the payer never finished.
+- `.github/workflows/ozow-reconcile.yml` runs hourly (re-checks open payments, closes expired ones) and daily at
+  02:43 SA time (checks every completed payment of the last 35 days against Ozow). A run that logs an alert fails,
+  and GitHub emails the account that owns the schedule. Look in Supabase → Table editor → `payment_events`.
+- Investigate an alert: open the payment in `online_payments` by `reference`, compare with the Ozow dashboard
+  (Transactions → search the reference), then correct the rent month by hand if needed.
+
+## Credential rotation (owner: Kagiso Tshukudu, director)
+Who holds production credentials: the director only (Ozow dashboard, Supabase, GitHub). Server functions read them;
+no person or browser can read them back from the app.
+
+| Credential | Where it lives | Rotate |
+|---|---|---|
+| Ryno-Tec Ozow Client Secret | GitHub secret `RTC_OZOW_CLIENT_SECRET` → Supabase function secret | every 12 months, when someone with dashboard access leaves, or on any suspicion |
+| A landlord's Ozow Client Secret | `ozow_secrets` (write-only) | landlord's choice; they paste the new one in Billing & payments → Edit connection |
+| Supabase access token (deploys) | GitHub secret `SUPABASE_ACCESS_TOKEN` | before it expires (90 days) |
+| Supabase service role key | Supabase only, never copied anywhere | if exposed: Supabase → Settings → API → roll |
+
+Steps for an Ozow secret: in the Ozow dashboard (One API Clients) create a new secret → update the GitHub secret →
+push or re-run "Test and deploy" → make one small test payment → revoke the old secret in Ozow.
+Ozow Dashboard access: give each person only the roles they need; keep Settlement, Refund and Banking admin to the director.

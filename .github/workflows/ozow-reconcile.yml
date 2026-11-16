@@ -1,0 +1,40 @@
+name: Ozow reconciliation
+
+# Hourly: re-check open online payments with Ozow. Daily 02:43 SA time: check every completed
+# payment of the last 35 days against Ozow's records. A run that finds anything odd fails,
+# and GitHub emails you about the failed run. Details are in the payment_events table.
+on:
+  schedule:
+    - cron: '17 * * * *'
+    - cron: '43 0 * * *'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Check completed payments too
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reconcile with Ozow
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          FULL: ${{ github.event.schedule == '43 0 * * *' || inputs.full == true }}
+        run: |
+          URL="$(echo "$SUPABASE_URL" | tr -d '[:space:]' | sed -E 's#/rest/v1/?$##; s#/+$##')"
+          KEY="$(echo "$SUPABASE_ANON_KEY" | tr -d '[:space:]')"
+          OUT="$(curl -sS --fail-with-body -X POST "$URL/functions/v1/ozow-reconcile" \
+            -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -H 'Content-Type: application/json' \
+            -d "{\"full\": $FULL}")"
+          echo "$OUT"
+          ALERTS="$(echo "$OUT" | jq -r '.alerts // 0')"
+          if [ "$ALERTS" != "0" ]; then
+            echo "::error::$ALERTS payment check(s) need attention. See the payment_events table in Supabase."
+            exit 1
+          fi

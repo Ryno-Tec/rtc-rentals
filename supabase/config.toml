@@ -10,3 +10,7 @@ verify_jwt = false
 
 [functions.ozow-check]
 verify_jwt = true
+
+[functions.ozow-reconcile]
+# Called on a schedule with the public anon key; throttled and returns counts only.
+verify_jwt = true

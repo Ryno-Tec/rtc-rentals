@@ -2,7 +2,7 @@
 // only used to find the payment: the outcome itself is fetched from Ozow's API with our own
 // credentials. Repeated notifications change nothing.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { settle } from '../_shared/settle.js';
+import { settle, logEvent } from '../_shared/settle.js';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const ok = (text = 'OK', status = 200) => new Response(text, { status, headers: { 'Content-Type': 'text/plain' } });
@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
   const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
   const { data: op } = await admin.from('online_payments').select('*').eq('reference', reference).maybeSingle();
-  if (!op) return ok('Unknown reference', 404);
+  if (!op) { await logEvent(admin, 'unknown_reference', { reference }, { from: 'notify' }); return ok('Unknown reference', 404); }
   try { await settle(admin, op); } catch { return ok('Not recorded', 500); }   // Ozow retries
   return ok();
 });
