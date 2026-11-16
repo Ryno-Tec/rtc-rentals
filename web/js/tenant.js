@@ -1,4 +1,4 @@
-import { isDemo, PROVINCES, leaveDemo } from './data.js';
+import { isDemo, PROVINCES, leaveDemo, api as core } from './data.js';
 import { tenantApi as api, CATEGORIES, URGENCY, REQUEST_STATUS, paymentReference } from './tenant-data.js';
 import { brand, esc, money, icon, toast, openModal, formData } from './shell.js';
 import { appLock, lockSettings } from './lock.js';
@@ -23,9 +23,21 @@ const ico = {
 // Session and chrome
 // ---------------------------------------------------------------------------
 const session = await api.session();
+// An owner who also rents their home from someone on the app opens this side too.
+const roles = session && session.role !== 'tenant' && !isDemo() ? await core.roles().catch(() => null) : null;
+const dual = Boolean(roles?.owner && roles?.tenant);
 if (!session) location.replace('index.html');
-else if (session.role !== 'tenant') location.replace(session.role === 'staff' ? 'staff.html' : 'dashboard.html');
+else if (session.role !== 'tenant' && !dual) location.replace(session.role === 'staff' ? 'staff.html' : 'dashboard.html');
 else {
+  if (dual && roles.side !== 'tenant') await core.setSide('tenant');
+  if (dual) {
+    document.getElementById('t-signout').insertAdjacentHTML('beforebegin', `<a class="btn btn-sm side-switch" href="dashboard.html">${icon.building}My properties</a>`);
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible') return;
+      const r = await core.roles().catch(() => null);
+      if (r && r.side !== 'tenant') { await core.setSide('tenant'); location.reload(); }
+    });
+  }
   await appLock(session, async () => { await api.signOut(); leaveDemo(); });
   document.getElementById('t-lock').innerHTML = icon.lock;
   document.getElementById('t-lock').addEventListener('click', () => lockSettings(session));

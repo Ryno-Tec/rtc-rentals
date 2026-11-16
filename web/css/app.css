@@ -595,3 +595,6 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .tax-table .tax-net th, .tax-table .tax-net td { background: var(--accent-soft); }
 .esc-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .esc-row > .hidden { display: none !important; }
+.side-switch { width: 100%; justify-content: center; margin-bottom: 6px; }
+.t-who .side-switch { width: auto; margin: 0; white-space: nowrap; }
+.side-switch svg { width: 15px; height: 15px; }

@@ -233,8 +233,21 @@ const live = {
     const { error } = await sb.rpc('accept_tenant_invite', { p_token: token });
     if (error) throw new DataError(error.message);
     // Someone who came in through Google or Apple has no role yet: mark the account as a tenant's.
+    // An owner who now also rents keeps the owner role and switches sides in the app.
+    const roles = await live.roles();
     const { data: { user } } = await sb.auth.getUser();
-    if (user?.user_metadata?.role !== 'tenant') { await sb.auth.updateUser({ data: { role: 'tenant' } }); await sb.auth.refreshSession(); }
+    if (!roles?.owner && user?.user_metadata?.role !== 'tenant') { await sb.auth.updateUser({ data: { role: 'tenant' } }); await sb.auth.refreshSession(); }
+  },
+  // Owner, tenant or both; `side` is set only for people who are both.
+  async roles() {
+    const sb = await client();
+    const { data, error } = await sb.rpc('my_roles');
+    return error ? null : data?.[0] || null;
+  },
+  async setSide(side) {
+    const sb = await client();
+    const { error } = await sb.rpc('set_my_side', { p_side: side });
+    if (error) throw new DataError(error.message);
   },
   async payments(leaseIds) {
     if (!leaseIds.length) return [];
@@ -496,6 +509,8 @@ const demo = {
     return inviteLink('demo');
   },
   async invitePreview() { return null; },
+  async roles() { return null; },
+  async setSide() {},
   async tenantSignUp() { throw new DataError('Accounts are switched off in the demo.'); },
   async acceptInvite() { throw new DataError('Accounts are switched off in the demo.'); },
   async payments(leaseIds) {

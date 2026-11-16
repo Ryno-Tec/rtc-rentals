@@ -21,6 +21,8 @@ experiences (owner and tenant), enforced by row-level security.
   section), CSV and print; tenants get a tax-year statement of rent paid.
 - Sign in with Google, Apple and Microsoft (shown once switched on in Supabase), including from
   invite links; guide in docs/SOCIAL-SIGN-IN.md.
+- One login can be an owner and a tenant (an owner renting their own home from another owner):
+  "My properties" / "My home" switch; the database shows only the active side's records.
 - Store readiness: privacy and account-deletion page, store screenshots, Android build config
   (Google Play and Huawei AppGallery), guide in docs/APP-STORES.md.
 

@@ -110,7 +110,15 @@
     }
   } else {
     const s = await api.session();
-    if (s) location.replace({ tenant: 'tenant.html', staff: 'staff.html' }[s.role] || 'dashboard.html');
+    if (s) await home(s);
+  }
+
+  async function home(s) {
+    if (s?.role !== 'tenant' && s?.role !== 'staff') {
+      const r = await api.roles().catch(() => null);
+      if (r?.owner && r?.tenant && r.side === 'tenant') return location.replace('tenant.html');
+    }
+    location.replace({ tenant: 'tenant.html', staff: 'staff.html' }[s?.role] || 'dashboard.html');
   }
 
   let mode = 'signin';
@@ -141,7 +149,7 @@
     try {
       if (mode === 'signin') {
         await api.signIn(email, password);
-        location.replace({ tenant: 'tenant.html', staff: 'staff.html' }[(await api.session())?.role] || 'dashboard.html');
+        await home(await api.session());
       }
       else {
         const { needsConfirmation } = await api.signUp(email, password, name);

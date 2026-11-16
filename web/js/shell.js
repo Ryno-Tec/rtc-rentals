@@ -54,6 +54,9 @@ export async function mountShell(active) {
   if (!session) { location.replace('index.html'); return new Promise(() => {}); }
   if (session.role === 'tenant') { location.replace('tenant.html'); return new Promise(() => {}); }
   if (session.role === 'staff') { location.replace('staff.html'); return new Promise(() => {}); }
+  const roles = isDemo() ? null : await api.roles().catch(() => null);
+  const dual = Boolean(roles?.owner && roles?.tenant);
+  if (dual && roles.side !== 'owner') await api.setSide('owner');
   await appLock(session, async () => { if (isDemo()) leaveDemo(); else await api.signOut(); });
   const profile = await api.profile().catch(() => ({ full_name: session.name, email: session.email, limits: null }));
 
@@ -70,6 +73,7 @@ export async function mountShell(active) {
       <div class="sidebar-foot">
         <button type="button" class="who-btn" id="me" title="Your profile photo"><span id="me-avatar"></span><span class="who">${esc(profile.full_name || profile.email)}</span></button>
         <div class="muted">${profile.limits ? esc(profile.limits.display_name) + ' plan' : ''}</div>
+        ${dual ? `<a class="btn btn-sm side-switch" href="tenant.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5h4v5"/></svg>My home (as a tenant)</a>` : ''}
         <button class="btn btn-ghost btn-sm" id="applock" type="button">${icon.lock}App lock</button>
         <button class="btn btn-ghost btn-sm" id="signout">${isDemo() && !configured ? 'Reset demo data' : isDemo() ? 'Leave demo' : 'Sign out'}</button>
       </div>
@@ -96,6 +100,12 @@ export async function mountShell(active) {
   });
 
   shell.querySelector('#applock').addEventListener('click', () => lockSettings(session));
+  // Someone who is both may have switched to "My home" in another tab: switch back and reload.
+  if (dual) document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    const r = await api.roles().catch(() => null);
+    if (r && r.side !== 'owner') { await api.setSide('owner'); location.reload(); }
+  });
   const meName = profile.full_name || session.name || session.email;
   const drawMe = async () => {
     const u = (await photoUrls([profile.photo_path]).catch(() => ({})))[profile.photo_path];
