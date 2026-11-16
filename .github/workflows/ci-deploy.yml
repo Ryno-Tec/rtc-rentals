@@ -63,9 +63,6 @@ jobs:
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
       - name: Deploy Ozow functions
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
@@ -78,9 +75,9 @@ jobs:
           [ -n "$RTC_OZOW_SITE_CODE" ] && ARGS="$ARGS RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE"
           [ -n "$RTC_OZOW_PRIVATE_KEY" ] && ARGS="$ARGS RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY"
           ARGS="$ARGS RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-true}"
-          supabase secrets set --project-ref "$REF" $ARGS
-          supabase functions deploy ozow-pay --project-ref "$REF" --use-api
-          supabase functions deploy ozow-notify --project-ref "$REF" --no-verify-jwt --use-api
+          npx -y supabase@latest secrets set --project-ref "$REF" $ARGS
+          npx -y supabase@latest functions deploy ozow-pay --project-ref "$REF" --use-api
+          npx -y supabase@latest functions deploy ozow-notify --project-ref "$REF" --no-verify-jwt --use-api
 
   deploy:
     needs: test
