@@ -1,9 +1,9 @@
 // RTC Rentals service worker: makes the app installable and keeps the screens
 // available on a weak or dropped connection. Data always comes live from Supabase;
 // nothing from the database is cached here.
-const VERSION = 'rtc-rentals-v11';
+const VERSION = 'rtc-rentals-v12';
 const SHELL = ['./', 'index.html', 'dashboard.html', 'properties.html', 'tenants.html', 'rent.html', 'tenant.html', 'join.html', 'leases.html', 'inspections.html', 'witness.html', 'maintenance.html', 'staff.html', 'privacy.html', 'tax.html', 'help.html',
-  'css/app.css', 'manifest.webmanifest', 'icons/icon-192.png',
+  'css/app.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/logo.svg', 'icons/google-g.png',
   'js/config.js', 'js/data.js', 'js/shell.js', 'js/ledger.js', 'js/dashboard.js', 'js/properties.js',
   'js/tenants.js', 'js/rent.js', 'js/tenant.js', 'js/tenant-data.js', 'js/pwa.js', 'js/join.js', 'js/docs-data.js', 'js/lease-template.js', 'js/lease-ui.js', 'js/inspect-ui.js',
   'js/sign-pad.js', 'js/leases.js', 'js/inspections.js', 'js/witness.js',

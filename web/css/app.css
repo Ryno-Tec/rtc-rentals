@@ -37,8 +37,8 @@ h3 { font-size: 14px; font-weight: 600; }
 
 /* ---------- Brand mark ---------- */
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-bright); display: grid; place-items: center; flex-shrink: 0; }
-.brand-mark svg { width: 18px; height: 18px; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: #1a1a1a; display: grid; place-items: center; flex-shrink: 0; }
+.brand-mark svg { width: 24px; height: 24px; }
 .brand small { display: block; font-weight: 450; font-size: 11px; color: var(--muted); letter-spacing: .02em; }
 
 /* ---------- App shell ---------- */
@@ -536,7 +536,7 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .app-lock { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); overflow-y: auto; }
 .lock-box { width: 100%; max-width: 320px; text-align: center; }
 .lock-mark { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px; }
-.lock-mark svg { width: 28px; height: 28px; }
+.lock-mark svg { width: 42px; height: 42px; }
 .lock-who { margin: 4px 0 0; font-size: 13px; }
 .lock-dots { display: flex; justify-content: center; gap: 14px; margin: 22px 0 6px; }
 .lock-dots i { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--accent); }
@@ -613,3 +613,7 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .help li { margin-bottom: 6px; }
 .help-link svg { width: 16px; height: 16px; }
 .sidebar-foot .help-link { width: 100%; justify-content: center; margin-bottom: 6px; }
+.oauth-btns .btn { gap: 10px; }
+.oauth-google { background: #fff; border-color: #747775; color: #1f1f1f; font-weight: 500; }
+.oauth-google:hover { background: #f8f9fa; }
+.oauth-btns img { display: block; }

@@ -5,6 +5,8 @@ import { config } from './config.js';
 import { esc } from './shell.js';
 
 const NAMES = { google: 'Google', apple: 'Apple', azure: 'Microsoft' };
+// Each provider's own mark, from the artwork it publishes for sign-in buttons (Google's is icons/google-g.png).
+const LOGOS = { google: '<img src="icons/google-g.png" alt="" width="18" height="18">' };
 
 export async function enabledProviders() {
   if (!configured || isDemo()) return [];
@@ -30,7 +32,7 @@ export async function mountOAuth(host, { redirectTo = location.href, verb = 'Con
   if (!list.length) { host.innerHTML = ''; host.classList.add('hidden'); return; }
   host.classList.remove('hidden');
   host.innerHTML = `<div class="oauth-btns">${list.map(p =>
-    `<button type="button" class="btn btn-ghost btn-block oauth-${p}" data-provider="${p}">${verb} with ${esc(NAMES[p])}</button>`).join('')}</div>
+    `<button type="button" class="btn btn-ghost btn-block oauth-${p}" data-provider="${p}">${LOGOS[p] || ''}<span>${verb} with ${esc(NAMES[p])}</span></button>`).join('')}</div>
     <div class="divider">or use your email</div>`;
   host.querySelectorAll('[data-provider]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
