@@ -7,3 +7,6 @@ verify_jwt = true
 [functions.ozow-notify]
 # Ozow calls this directly; it checks Ozow's signature itself.
 verify_jwt = false
+
+[functions.ozow-check]
+verify_jwt = true

@@ -2,7 +2,7 @@
 import { isDemo } from './data.js';
 import { billingApi as api, feeFor } from './billing-data.js';
 import { mountShell, esc, icon, toast, openModal, formData, confirmDialog } from './shell.js';
-import { ozowReturn } from './ozow-client.js';
+import { ozowReturn, checkOzow, OZOW_RESULT } from './ozow-client.js';
 
 await mountShell('billing.html');
 const view = document.getElementById('view');
@@ -16,7 +16,7 @@ let d;
 
 function ozowCard() {
   const o = d.ozow;
-  const state = !o ? ['muted', 'Not connected'] : !o.enabled ? ['soon', 'Switched off'] : o.is_test ? ['info', 'Test mode'] : ['ok', 'Live'];
+  const state = !o ? ['muted', 'Not connected'] : !o.enabled ? ['soon', 'Switched off'] : o.is_test ? ['info', 'Test (Ozow staging)'] : ['ok', 'Live'];
   return `
     <section class="card" aria-labelledby="oz-h">
       <div class="card-head"><h2 id="oz-h">Online rent payments</h2><span class="pill pill-${state[0]}" id="oz-state">${state[1]}</span></div>
@@ -25,8 +25,8 @@ function ozowCard() {
           Ryno-Tec never holds your rent. Payments show as paid here automatically, with a receipt for the tenant.</p>
         ${o ? `<dl class="kv">
             <div><dt>Site Code</dt><dd><code class="ref">${esc(o.site_code)}</code></dd></div>
-            <div><dt>Private Key</dt><dd>Saved, ends in <code>${esc(o.key_hint || '····')}</code>. It can’t be viewed again.</dd></div>
-            <div><dt>Mode</dt><dd>${o.is_test ? 'Test: no real money moves. Switch to live once Ozow approves your account.' : 'Live payments'}</dd></div>
+            <div><dt>Client Secret</dt><dd>Saved, ends in <code>${esc(o.key_hint || '····')}</code>. It can’t be viewed again.</dd></div>
+            <div><dt>Mode</dt><dd>${o.is_test ? 'Test: Ozow’s staging system, no real money moves.' : 'Live payments'}</dd></div>
           </dl>
           <div class="btn-row" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" type="button" data-action="ozow">Edit connection</button>
@@ -35,11 +35,11 @@ function ozowCard() {
           </div>`
         : `<ol class="steps-list" style="padding-left:18px;margin:10px 0 14px;line-height:1.6">
             <li>Open a business account at <a href="https://ozow.com" target="_blank" rel="noopener">ozow.com</a> and finish their checks.</li>
-            <li>In the Ozow merchant dashboard, open <b>Merchant details → Site settings</b> and copy your <b>Site Code</b>, <b>Private Key</b> and <b>API Key</b>.</li>
-            <li>Paste them here. Start in test mode, pay one month as a test, then switch to live.</li>
+            <li>In the Ozow dashboard, copy your <b>Site Code</b> (under <b>Sites</b>), then the <b>Client ID</b> and <b>Client Secret</b> (under <b>One API Clients</b>).</li>
+            <li>Paste them here. Your first tenant payment is the real test: start with a small amount if you want to be sure.</li>
           </ol>
           <button class="btn" type="button" data-action="ozow">${icon.plus}Connect Ozow</button>`}
-        <p class="hint" style="margin:14px 0 0">Ozow charges you its own fee per payment (about 1.5%), taken from your Ozow payout.</p>
+        <p class="hint" style="margin:14px 0 0">Ozow charges you its own fee per payment, taken from your Ozow payout.</p>
       </div>
     </section>`;
 }
@@ -100,17 +100,17 @@ function connectForm() {
   openModal({
     title: o ? 'Edit Ozow connection' : 'Connect Ozow', submitLabel: 'Save',
     body: `
-      <div class="field"><label for="oz-site">Site Code</label><input id="oz-site" name="site_code" required maxlength="50" autocomplete="off" value="${esc(o?.site_code || '')}" placeholder="e.g. ABC-ABC-001"></div>
-      <div class="field"><label for="oz-key">Private Key${o ? ' <span class="muted">(leave empty to keep the saved one)</span>' : ''}</label>
-        <input id="oz-key" name="private_key" type="password" autocomplete="off" spellcheck="false" ${o ? '' : 'required'}></div>
-      <div class="field"><label for="oz-api">API Key <span class="muted">(optional)</span></label>
-        <input id="oz-api" name="api_key" type="password" autocomplete="off" spellcheck="false"></div>
-      <label class="check"><input type="checkbox" name="is_test" ${!o || o.is_test ? 'checked' : ''}> Test mode (no real money moves)</label>
-      <p class="hint" style="margin:12px 0 0">The keys are stored on the server and only used to sign payments. Nobody, including you, can view them here again.</p>`,
+      <div class="field"><label for="oz-site">Site Code <span class="muted">(Ozow dashboard → Sites)</span></label><input id="oz-site" name="site_code" required maxlength="50" autocomplete="off" value="${esc(o?.site_code || '')}" placeholder="e.g. ABC-ABC-001"></div>
+      <div class="field"><label for="oz-id">Client ID <span class="muted">(One API Clients)</span>${o ? ' <span class="muted">— leave empty to keep</span>' : ''}</label>
+        <input id="oz-id" name="client_id" autocomplete="off" spellcheck="false" ${o ? '' : 'required'}></div>
+      <div class="field"><label for="oz-secret">Client Secret${o ? ' <span class="muted">— leave empty to keep</span>' : ''}</label>
+        <input id="oz-secret" name="client_secret" type="password" autocomplete="off" spellcheck="false" ${o ? '' : 'required'}></div>
+      <label class="check"><input type="checkbox" name="is_test" ${o?.is_test ? 'checked' : ''}> These are Ozow <b>staging</b> (test) credentials</label>
+      <p class="hint" style="margin:12px 0 0">Stored on the server and only used to create payments with Ozow. Nobody, including you, can view the secret here again.</p>`,
     async onSubmit(form) {
       const v = formData(form);
       await api.saveOzow({ ...v, enabled: o ? o.enabled : true });
-      toast(v.is_test ? 'Ozow connected in test mode' : 'Ozow connected. Tenants can pay online.');
+      toast(v.is_test ? 'Ozow connected to staging (test)' : 'Ozow connected. Tenants can pay online.');
       await refresh();
     },
   });
@@ -145,10 +145,11 @@ view.addEventListener('click', async e => {
   } catch (ex) { toast(ex.message, 'error'); }
 });
 
-const back = ozowReturn();
+const backRef = ozowReturn();
 await refresh();
-if (back === 'success') {
-  toast('Thank you! The payment is being confirmed.');
-  setTimeout(refresh, 5000); setTimeout(refresh, 12000);
-} else if (back === 'cancelled') toast('Payment cancelled. Nothing was charged.');
-else if (back === 'error') toast('The bank couldn’t complete the payment. Try again or pay by EFT.', 'error');
+if (backRef) {
+  toast('Checking your payment with Ozow…');
+  const [msg, tone] = OZOW_RESULT[await checkOzow(backRef)] || OZOW_RESULT.pending;
+  await refresh();
+  toast(msg.replace(' from your account', ''), tone || undefined);
+}

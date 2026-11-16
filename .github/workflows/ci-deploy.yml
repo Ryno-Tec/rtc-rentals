@@ -59,7 +59,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       RTC_OZOW_SITE_CODE: ${{ secrets.RTC_OZOW_SITE_CODE }}
-      RTC_OZOW_PRIVATE_KEY: ${{ secrets.RTC_OZOW_PRIVATE_KEY }}
+      RTC_OZOW_CLIENT_ID: ${{ secrets.RTC_OZOW_CLIENT_ID }}
+      RTC_OZOW_CLIENT_SECRET: ${{ secrets.RTC_OZOW_CLIENT_SECRET }}
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
     steps:
       - uses: actions/checkout@v4
@@ -72,11 +73,12 @@ jobs:
           echo "Project: $REF"
           npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
           npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
+          npx -y supabase@latest functions deploy ozow-check --yes --project-ref "$REF" --use-api
           # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
-          # rentals.ryno-tec.co.za and test mode stays on unless RTC_OZOW_IS_TEST is "false".
-          if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_PRIVATE_KEY" ]; then
+          # rentals.ryno-tec.co.za; RTC_OZOW_IS_TEST=true only for Ozow staging credentials.
+          if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then
             npx -y supabase@latest secrets set --yes --project-ref "$REF" \
-              "RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-true}"
+              "RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_CLIENT_ID=$RTC_OZOW_CLIENT_ID" "RTC_OZOW_CLIENT_SECRET=$RTC_OZOW_CLIENT_SECRET" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}"
           else
             echo "::notice::Ryno-Tec Ozow secrets not set yet; invoices can be paid by EFT until then."
           fi

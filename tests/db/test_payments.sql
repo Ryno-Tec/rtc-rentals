@@ -34,14 +34,14 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000a71', false);
 set role authenticated;
 do $$ begin
-  begin perform public.save_ozow_account('ZAN-001', null, null, true); raise exception 'expected: key required';
+  begin perform public.save_ozow_account('ZAN-001', 'client-1', null, true); raise exception 'expected: key required';
   exception when sqlstate '22023' then null; end;
-  begin perform public.save_ozow_account('x', 'abcdefghijklmnop1234', null, true); raise exception 'expected: site code checked';
+  begin perform public.save_ozow_account('x', 'client-1', 'abcdefghijklmnop1234', true); raise exception 'expected: site code checked';
   exception when sqlstate '22023' then null; end;
-  begin perform public.save_ozow_account('ZAN-001', 'short', null, true); raise exception 'expected: short key refused';
+  begin perform public.save_ozow_account('ZAN-001', 'client-1', 'short', true); raise exception 'expected: short key refused';
   exception when sqlstate '22023' then null; end;
 end $$;
-select public.save_ozow_account('ZAN-001', 'privatekey-abcdefgh-9876', 'apikey-1', true);
+select public.save_ozow_account('ZAN-001', 'client-1', 'clientsecret-abcdefgh-9876', true);
 do $$ begin
   assert (select key_hint from public.ozow_accounts) = '9876', 'hint is the last 4';
   begin perform * from public.ozow_secrets; raise exception 'expected: secrets unreadable';
@@ -50,10 +50,11 @@ do $$ begin
   exception when insufficient_privilege then null; end;
 end $$;
 -- Saving again without a key keeps the stored key
-select public.save_ozow_account('ZAN-002', '', null, true);
+select public.save_ozow_account('ZAN-002', '', '', true);
 reset role;
 do $$ begin
-  assert (select private_key from public.ozow_secrets where landlord_id = current_setting('test.zl')::uuid) = 'privatekey-abcdefgh-9876', 'key kept';
+  assert (select client_secret from public.ozow_secrets where landlord_id = current_setting('test.zl')::uuid) = 'clientsecret-abcdefgh-9876', 'secret kept';
+  assert (select client_id from public.ozow_secrets where landlord_id = current_setting('test.zl')::uuid) = 'client-1', 'client id kept';
   assert (select site_code from public.ozow_accounts where landlord_id = current_setting('test.zl')::uuid) = 'ZAN-002', 'site code updated';
 end $$;
 

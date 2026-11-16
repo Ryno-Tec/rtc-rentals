@@ -23,7 +23,7 @@ const live = {
   },
   async saveOzow(v) {
     const sb = await client();
-    check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_private_key: v.private_key || '', p_api_key: v.api_key || '',
+    check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_client_id: v.client_id || '', p_client_secret: v.client_secret || '',
       p_is_test: Boolean(v.is_test), p_enabled: v.enabled !== false }));
   },
   async removeOzow() { const sb = await client(); check(await sb.rpc('remove_ozow_account')); },
@@ -54,10 +54,10 @@ const demo = {
   async saveOzow(v) {
     const s = load(), b = billing(s);
     if (!/^[A-Za-z0-9-]{3,50}$/.test(v.site_code || '')) throw new DataError('Enter the Site Code from your Ozow dashboard');
-    if (!b.ozow && !v.private_key) throw new DataError('Enter the Private Key from your Ozow dashboard');
-    if (v.private_key && v.private_key.length < 16) throw new DataError('That Private Key looks too short');
+    if (!b.ozow && (!v.client_id || !v.client_secret)) throw new DataError('Enter the Client ID and Client Secret from your Ozow dashboard (One API Clients)');
+    if (v.client_secret && v.client_secret.length < 16) throw new DataError('That Client Secret looks too short');
     b.ozow = { site_code: v.site_code, is_test: Boolean(v.is_test), enabled: v.enabled !== false,
-      key_hint: v.private_key ? v.private_key.slice(-4) : b.ozow.key_hint, updated_at: new Date().toISOString() };
+      key_hint: v.client_secret ? v.client_secret.slice(-4) : b.ozow.key_hint, updated_at: new Date().toISOString() };
     save(s); emit();
   },
   async removeOzow() { const s = load(); billing(s).ozow = null; save(s); emit(); },

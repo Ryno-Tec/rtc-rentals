@@ -36,20 +36,21 @@ with sync_playwright() as pw:
     # Connect: a short key is refused, then a good one saves in test mode
     page.get_by_role("button", name="Connect Ozow").click()
     page.get_by_label("Site Code").fill("TST-RTC-001")
-    page.get_by_label("Private Key").fill("short")
+    page.get_by_label("Client ID").fill("client-123")
+    page.get_by_label("Client Secret").fill("short")
     page.locator(".modal [type=submit]").click()
     expect(page.locator(".modal .form-error")).to_contain_text("too short")
-    page.get_by_label("Private Key").fill("abcdef0123456789wxyz")
+    page.get_by_label("Client Secret").fill("abcdef0123456789wxyz")
     page.locator(".modal [type=submit]").click()
     expect(page.locator(".modal")).to_have_count(0)
-    expect(page.locator("#oz-state")).to_have_text("Test mode")
+    expect(page.locator("#oz-state")).to_have_text("Live")
     expect(page.locator("#oz-h").locator("../..")).to_contain_text("wxyz")
     page.screenshot(path=str(SHOTS / "billing.png"), full_page=True)
 
     page.get_by_role("button", name="Switch off").click()
     expect(page.locator("#oz-state")).to_have_text("Switched off")
     page.get_by_role("button", name="Switch on").click()
-    expect(page.locator("#oz-state")).to_have_text("Test mode")
+    expect(page.locator("#oz-state")).to_have_text("Live")
 
     # Pay Ryno-Tec's invoice
     page.get_by_role("button", name="Pay now").click()

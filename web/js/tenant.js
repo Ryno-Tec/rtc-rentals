@@ -8,7 +8,7 @@ import { docHtml, docBadge, waitingOn, partyActions, runPartyAction, printButton
 import { taxYearOf, inYear, taxYearLabel } from './tax-data.js';
 import { currentRent, hasEscalation, escalationText, nextEscalation, monthLabel } from './ledger.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
-import { ozowReturn } from './ozow-client.js';
+import { ozowReturn, checkOzow, OZOW_RESULT } from './ozow-client.js';
 
 const ico = {
   ...icon,
@@ -570,18 +570,14 @@ async function refresh() {
 }
 
 window.addEventListener('hashchange', () => { if (data) { render(); window.scrollTo(0, 0); } });
-const paid = ozowReturn();
+const backRef = ozowReturn();
 await refresh();
-if (paid === 'success') {
-  toast('Thank you! Your bank is confirming the payment. It shows here within a minute.');
-  const before = JSON.stringify(data?.payments?.map(p => p.status));
-  for (let i = 0; i < 8; i++) {                   // Ozow tells the server separately; check back a few times
-    await new Promise(r => setTimeout(r, 4000));
-    await refresh();
-    if (JSON.stringify(data?.payments?.map(p => p.status)) !== before) { toast('Payment received. Thank you!'); break; }
-  }
-} else if (paid === 'cancelled') toast('Payment cancelled. Nothing was taken from your account.');
-else if (paid === 'error') toast('Your bank couldn’t complete the payment. Nothing was taken. Try again or pay by EFT.', 'error');
+if (backRef) {
+  toast('Checking your payment with Ozow…');
+  const [msg, tone] = OZOW_RESULT[await checkOzow(backRef)] || OZOW_RESULT.pending;
+  await refresh();
+  toast(msg, tone || undefined);
+}
 api.subscribe(() => {
   // Leave an open form or a half-done inspection alone; the next action reloads anyway.
   if (document.querySelector('.modal-backdrop') || (currentTab() === 'inspection' && hashParts()[1])) return;

@@ -1,56 +1,80 @@
-// Ozow pay-by-bank: building a signed payment request and checking Ozow's signed responses.
-// Plain JavaScript (Web Crypto) so it runs in Supabase Edge Functions (Deno) and in the Node tests.
-// Field order and hashing follow Ozow's "Post from merchant website" and "Process Ozow response" steps.
+// Ozow One API (https://hub.ozow.com). Plain JS so Node can unit-test it and Deno can run it.
+//   token:   POST {base}/v1/token  (client_credentials, scope=payments), valid ~4 hours
+//   create:  POST {base}/v1/payments  -> { id, status: 'Created', redirectUrl }
+//   confirm: GET  {base}/v1/payments/{id}/transactions?fromDate&toDate -> results[].status
+// Test mode means Ozow's staging environment, with staging credentials from Ozow support.
+export const OZOW_LIVE = 'https://one.ozow.com';
+export const OZOW_STAGING = 'https://stagingone.ozow.com';
+export const ozowBase = isTest => (isTest ? OZOW_STAGING : OZOW_LIVE);
 
-export const OZOW_PAY_URL = 'https://pay.ozow.com/';
+// beneficiaryReference: letters and digits only, at most 20 (a site prefix counts too, so keep it short).
+export const bankReference = s => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15) || 'RENT';
 
-// Request fields in Ozow's table order. Only the ones we post are hashed; we post no optional fields.
-const REQUEST_ORDER = ['SiteCode', 'CountryCode', 'CurrencyCode', 'Amount', 'TransactionReference', 'BankReference',
-  'Optional1', 'Optional2', 'Optional3', 'Optional4', 'Optional5', 'Customer',
-  'CancelUrl', 'ErrorUrl', 'SuccessUrl', 'NotifyUrl', 'IsTest'];
-// Response/notification fields 1–13, in order. Hash, SubStatus, MaskedAccountNumber, BankName and SmartIndicators are left out.
-const RESPONSE_ORDER = ['SiteCode', 'TransactionId', 'TransactionReference', 'Amount', 'Status',
-  'Optional1', 'Optional2', 'Optional3', 'Optional4', 'Optional5', 'CurrencyCode', 'IsTest', 'StatusMessage'];
-
-export async function sha512Hex(text) {
-  const buf = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+export function newReference() {
+  const b = new Uint8Array(10);
+  crypto.getRandomValues(b);
+  return 'RTC' + [...b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
-const present = v => v !== undefined && v !== null && v !== '';
+// Ozow transaction status -> the status words complete_online_payment() understands.
+export const TX_STATUS = { successful: 'Complete', incomplete: 'Cancelled', error: 'Error', pending: 'Pending' };
 
-/** The HashCheck for a payment request: the posted fields in order, then the private key, lower-cased, SHA-512. */
-export async function signRequest(fields, privateKey) {
-  const joined = REQUEST_ORDER.filter(k => present(fields[k])).map(k => String(fields[k])).join('') + privateKey;
-  return sha512Hex(joined.toLowerCase());
+const tokens = new Map();   // per client, reused while valid
+export async function getToken({ base, clientId, clientSecret, fetchImpl = fetch, now = Date.now }) {
+  const key = `${base}|${clientId}`;
+  const hit = tokens.get(key);
+  if (hit && hit.until > now()) return hit.token;
+  const res = await fetchImpl(`${base}/v1/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: 'payments', grant_type: 'client_credentials' }).toString(),
+  });
+  if (!res.ok) throw new OzowError(res.status === 400 || res.status === 401 ? 'Ozow rejected the Client ID or Client Secret.' : `Ozow sign-in failed (${res.status}).`, res.status);
+  const j = await res.json();
+  const ttl = Math.max(60, Number(j.expires_in) || 3600) - 60;
+  tokens.set(key, { token: j.access_token, until: now() + ttl * 1000 });
+  return j.access_token;
 }
 
-/** True when a response or notification carries Ozow's valid signature for this private key. */
-export async function verifyResponse(params, privateKey) {
-  if (!params || !params.Hash || !privateKey) return false;
-  const joined = RESPONSE_ORDER.map(k => (params[k] ?? '')).join('') + privateKey;
-  const mine = (await sha512Hex(joined.toLowerCase())).replace(/^0+/, '');
-  const theirs = String(params.Hash).toLowerCase().replace(/^0+/, '');
-  if (mine.length !== theirs.length) return false;
-  let diff = 0;
-  for (let i = 0; i < mine.length; i++) diff |= mine.charCodeAt(i) ^ theirs.charCodeAt(i);
-  return diff === 0;
-}
+export class OzowError extends Error { constructor(m, status) { super(m); this.status = status; } }
 
-/** The reference the customer sees in their bank: letters, digits, spaces and dashes, 20 characters at most. */
-export const bankReference = s => String(s || 'RENT').replace(/[^A-Za-z0-9 -]/g, '').trim().slice(0, 20) || 'RENT';
-
-/** A unique merchant reference for one payment attempt (Ozow allows 50 characters). */
-export const newReference = () => 'RTC' + crypto.randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
-
-/** The fields to post to Ozow, signed. */
-export async function paymentRequest({ siteCode, privateKey, amount, reference, bankRef, cancelUrl, errorUrl, successUrl, notifyUrl, isTest }) {
-  const fields = {
-    SiteCode: siteCode, CountryCode: 'ZA', CurrencyCode: 'ZAR', Amount: Number(amount).toFixed(2),
-    TransactionReference: reference, BankReference: bankReference(bankRef),
-    CancelUrl: cancelUrl, ErrorUrl: errorUrl, SuccessUrl: successUrl, NotifyUrl: notifyUrl,
-    IsTest: isTest ? 'true' : 'false',
+export function paymentBody({ siteCode, amount, reference, bankRef, returnUrl, notifyUrl, minutes = 60, now = new Date() }) {
+  const body = {
+    siteCode,
+    region: 'ZA',
+    amount: { currency: 'ZAR', value: Math.round(Number(amount) * 100) / 100 },
+    merchantReference: reference,
+    beneficiaryReference: bankReference(bankRef),
+    expireAt: new Date(now.getTime() + minutes * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    returnUrl,
   };
-  fields.HashCheck = await signRequest(fields, privateKey);
-  return fields;
+  if (notifyUrl) body.notifyUrl = notifyUrl;
+  return body;
+}
+
+export async function createPayment({ base, token, body, fetchImpl = fetch }) {
+  const res = await fetchImpl(`${base}/v1/payments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': body.merchantReference },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.redirectUrl) throw new OzowError(j.detail || j.title || j.message || `Ozow couldn’t create the payment (${res.status}).`, res.status);
+  return { id: j.id, redirectUrl: j.redirectUrl };
+}
+
+const ymd = d => d.toISOString().slice(0, 10);
+// The outcome Ozow holds for a payment: a successful transaction wins, otherwise the latest attempt.
+export async function paymentOutcome({ base, token, paymentId, since, fetchImpl = fetch, now = new Date() }) {
+  const from = new Date(new Date(since).getTime() - 864e5), to = new Date(now.getTime() + 864e5);
+  const url = `${base}/v1/payments/${encodeURIComponent(paymentId)}/transactions?fromDate=${ymd(from)}&toDate=${ymd(to)}&limit=50`;
+  const res = await fetchImpl(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new OzowError(`Ozow status check failed (${res.status}).`, res.status);
+  const list = (await res.json()).results || [];
+  if (!list.length) return null;                                   // payer hasn't finished yet
+  const ok = list.find(t => String(t.status).toLowerCase() === 'successful');
+  const t = ok || [...list].sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate)))[0];
+  const status = TX_STATUS[String(t.status).toLowerCase()];
+  if (!status) return null;                                        // e.g. Refunded: leave as is
+  return { status, transactionId: t.id, amount: Number(t.amount?.value), reason: t.reason || null, raw: t };
 }
