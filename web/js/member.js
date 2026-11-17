@@ -1,5 +1,6 @@
 // A team member opens their invite link, creates a login (or signs in, or uses Google/Microsoft),
 // and is linked to the agency's account.
+import { rememberField, applyRemember } from './session-guard.js';
 import { configured, isDemo, client, DataError } from './data.js';
 import { brand, esc } from './shell.js';
 import { mountOAuth } from './oauth.js';
@@ -35,6 +36,7 @@ function form(p) {
       <div class="field"><label for="mj-email">Work email</label><input id="mj-email" type="email" autocomplete="email" value="${esc(p.member_email || '')}"></div>
       <div class="field"><label for="mj-pw">Password</label><input id="mj-pw" type="password" autocomplete="new-password" minlength="8"><div class="hint" id="mj-hint">At least 8 characters.</div></div>
       <label class="check" id="mj-consent-f" style="margin-bottom:14px"><input type="checkbox" id="mj-consent"> <span>I’ll keep owners’ and tenants’ personal information private and use it only for the agency’s work (POPIA).</span></label>
+      ${rememberField()}
       <button class="btn btn-block" type="submit" id="mj-go">Create login</button>
     </form>`;
   const $ = id => document.getElementById(id);
@@ -55,6 +57,7 @@ function form(p) {
     if (mode === 'signup' && !$('mj-consent').checked) return err('Tick the box to continue.');
     $('mj-go').disabled = true;
     try {
+      applyRemember();
       const sb = await client();
       if (mode === 'signin') {
         const { error } = await sb.auth.signInWithPassword({ email, password: pw });

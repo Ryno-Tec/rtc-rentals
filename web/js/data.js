@@ -1,6 +1,7 @@
 // Data layer. One API, two backends:
 //   live — Supabase (auth + Postgres with row-level security)
 //   demo — sample data kept in this browser, same rules as the database
+import { authStorage, guard, signOutHere, signOutEverywhere, applyRemember } from './session-guard.js';
 import { config } from './config.js';
 
 export const configured = Boolean(config.supabaseUrl && config.supabaseAnonKey);
@@ -98,9 +99,14 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter(k => k in obj).map(k 
 let clientPromise;
 export function client() {
   clientPromise ??= import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
-    .then(({ createClient }) => createClient(
-      // Tolerate the REST path or stray spaces the dashboard copy can include.
-      config.supabaseUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''), config.supabaseAnonKey.trim()));
+    .then(({ createClient }) => {
+      const sb = createClient(
+        // Tolerate the REST path or stray spaces the dashboard copy can include.
+        config.supabaseUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''), config.supabaseAnonKey.trim(),
+        { auth: { storage: authStorage } });       // this browser session only, unless "keep me signed in"
+      guard(sb).catch(() => {});                  // idle sign-out
+      return sb;
+    });
   return clientPromise;
 }
 
@@ -112,12 +118,14 @@ const live = {
     return u ? { email: u.email, name: u.user_metadata?.full_name || '', role: u.user_metadata?.role || 'landlord' } : null;
   },
   async signIn(email, password) {
+    applyRemember();
     const sb = await client();
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw new DataError(error.message === 'Invalid login credentials'
       ? 'Email or password is incorrect.' : error.message);
   },
   async signUp(email, password, fullName) {
+    applyRemember();
     const sb = await client();
     const { data, error } = await sb.auth.signUp({
       email, password,
@@ -136,7 +144,8 @@ const live = {
     const { error } = await sb.auth.updateUser({ password });
     if (error) throw new DataError(error.message);
   },
-  async signOut() { const sb = await client(); await sb.auth.signOut(); },
+  async signOut() { await signOutHere(await client()); },
+  async signOutEverywhere() { await signOutEverywhere(await client()); },
 
   async profile() {
     const sb = await client();
@@ -226,6 +235,7 @@ const live = {
     return data?.[0] || null;
   },
   async tenantSignUp(email, password, fullName, token) {
+    applyRemember();
     const sb = await client();
     const { data, error } = await sb.auth.signUp({ email, password,
       options: { data: { full_name: fullName, role: 'tenant' }, emailRedirectTo: inviteLink(token) } });

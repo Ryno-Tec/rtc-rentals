@@ -5,7 +5,8 @@
 // stays protected by the password at sign-in. The PIN never leaves the device: only a salted
 // PBKDF2 hash is kept in this browser. Fingerprint/face uses the phone's own platform authenticator
 // (WebAuthn) with user verification required; RTC Rentals never sees the fingerprint or face.
-import { esc, openModal, toast, icon } from './shell.js';
+import { esc, openModal, toast, icon, confirmDialog } from './shell.js';
+import { signOutEverywhere } from './session-guard.js';
 
 const KEY = email => 'rtc-lock:' + (email || '').toLowerCase();
 const OFFERED = email => 'rtc-lock-offered:' + (email || '').toLowerCase();
@@ -204,7 +205,11 @@ export async function lockSettings(user) {
         : '<p class="hint">Fingerprint or face unlock isn’t available in this browser. On a phone, install the app first, then come back here.</p>'}
       <div class="field"><label for="lk-after">Lock the app</label><select id="lk-after" name="after">
         ${Object.entries(LOCK_AFTER).map(([k, v]) => `<option value="${k}" ${Number(k) === (cfg?.after ?? 5) ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      ${cfg ? '<button type="button" class="btn btn-danger btn-sm" id="lk-off">Turn off app lock</button>' : ''}`,
+      ${cfg ? '<button type="button" class="btn btn-danger btn-sm" id="lk-off">Turn off app lock</button>' : ''}
+      <div class="lk-everywhere" style="border-top:1px solid var(--line, #e5e5e5);margin-top:16px;padding-top:14px">
+        <b>Signed in on a shared or lost device?</b>
+        <p class="hint" style="margin:4px 0 10px">This signs your account out on every phone and computer, including this one.</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="lk-everywhere">Sign out on all devices</button></div>`,
     async onSubmit(form) {
       const pin = form.elements.pin.value.trim(), pin2 = form.elements.pin2.value.trim();
       const wantBio = Boolean(form.elements.bio?.checked);
@@ -225,6 +230,15 @@ export async function lockSettings(user) {
       toast(cfg ? 'App lock saved' : `App lock on${cred ? ', with fingerprint or face' : ''}`);
       document.dispatchEvent(new CustomEvent('applock-change'));
     },
+  });
+  document.getElementById('lk-everywhere')?.addEventListener('click', async () => {
+    if (!await confirmDialog('Sign out on all devices?', 'Every phone and computer signed in to your account is signed out, including this one. You’ll sign in again with your password or Google/Microsoft.', 'Sign out everywhere')) return;
+    const data = await import('./data.js');
+    if (data.isDemo()) { toast('Not available in the demo'); return; }
+    try { await signOutEverywhere(await data.client()); }
+    catch { toast('Couldn’t reach the server. Check your connection and try again.', 'error'); return; }
+    ss.del(SESSION);
+    location.replace('index.html');
   });
   document.getElementById('lk-off')?.addEventListener('click', () => {
     ls.del(KEY(user.email)); document.querySelector('.modal-backdrop')?.remove();

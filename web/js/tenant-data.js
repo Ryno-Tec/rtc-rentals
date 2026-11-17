@@ -1,6 +1,7 @@
 // Tenant portal data. Same two backends as the landlord side:
 //   live — Supabase, limited by the tenant policies in 002_tenant_portal.sql
 //   demo — the shared sample data in this browser (Lerato Nkosi, Room 1)
+import { signOutHere } from './session-guard.js';
 import { isDemo, client, demoStore, DataError } from './data.js';
 import { startOzow } from './ozow-client.js';
 
@@ -102,7 +103,7 @@ const live = {
     const { error } = await sb.from('messages').insert({ tenant_id: tenantId, sender: 'tenant', body });
     if (error) throw new DataError(error.message);
   },
-  async signOut() { const sb = await client(); await sb.auth.signOut(); },
+  async signOut() { await signOutHere(await client()); },
   async subscribe(onChange) {
     const sb = await client();
     const ch = sb.channel('tenant')

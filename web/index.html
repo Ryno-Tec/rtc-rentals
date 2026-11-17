@@ -60,6 +60,7 @@
             <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8">
             <div class="hint hidden" id="pw-hint">At least 8 characters.</div>
           </div>
+          <div id="remember-slot"></div>
           <button class="btn" type="submit" id="submit">Sign in</button>
           <p style="text-align:center;margin:12px 0 0"><button type="button" class="btn-link" id="forgot">Forgot password?</button></p>
         </form>
@@ -78,6 +79,12 @@
   import { api, configured, isDemo, enterDemo, leaveDemo } from './js/data.js';
   import { brand, icon } from './js/shell.js';
   import { mountOAuth } from './js/oauth.js';
+  import { rememberField } from './js/session-guard.js';
+  document.getElementById('remember-slot').innerHTML = rememberField();
+  if (new URLSearchParams(location.search).get('signedout') === 'idle') {
+    const i = document.getElementById('info');
+    if (i) { i.textContent = 'You were signed out because the app wasn’t used for a while. Sign in again to continue.'; i.classList.remove('hidden'); }
+  }
   mountOAuth(document.getElementById('oauth'), { redirectTo: new URL('index.html', location.href).href,
     onError: m => { const e = document.getElementById('error'); e.textContent = m; e.classList.remove('hidden'); } });
 

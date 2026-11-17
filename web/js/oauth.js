@@ -3,6 +3,7 @@
 import { configured, isDemo, client, DataError } from './data.js';
 import { config } from './config.js';
 import { esc } from './shell.js';
+import { applyRemember } from './session-guard.js';
 
 const NAMES = { google: 'Google', apple: 'Apple', azure: 'Microsoft' };
 // Each provider's own mark, from the artwork it publishes for sign-in buttons (Google's is icons/google-g.png).
@@ -25,6 +26,7 @@ export async function enabledProviders() {
 }
 
 export async function signInWith(provider, redirectTo) {
+  applyRemember();
   const sb = await client();
   const { error } = await sb.auth.signInWithOAuth({ provider, options: {
     // Supabase needs Microsoft's email claim; the app registration adds xms_edov so unverified

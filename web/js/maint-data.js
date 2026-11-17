@@ -1,5 +1,6 @@
 // Maintenance: the owner's fault board and team, and the maintenance person's jobs.
 // Live: Supabase (007_maintenance_team.sql decides who sees what). Demo: sample data in this browser.
+import { signOutHere } from './session-guard.js';
 import { isDemo, client, demoStore, DataError, demoAvatar } from './data.js';
 
 export const STATUS = { open: 'Logged', assigned: 'Booked', in_progress: 'In progress', resolved: 'Fixed', closed: 'Closed' };
@@ -105,7 +106,7 @@ const live = {
     const { data: { user } } = await sb.auth.getUser();     // Google/Apple sign-ins arrive without a role
     if (user?.user_metadata?.role !== 'staff') { await sb.auth.updateUser({ data: { role: 'staff' } }); await sb.auth.refreshSession(); }
   },
-  async signOut() { const sb = await client(); await sb.auth.signOut(); },
+  async signOut() { await signOutHere(await client()); },
   async subscribe(onChange) {
     const sb = await client();
     const ch = sb.channel('maintenance')

@@ -26,7 +26,7 @@ jobs:
           bash tests/db/run.sh
 
       - name: Ozow signing tests
-        run: for t in tests/ozow/*.test.mjs; do node "$t"; done
+        run: for t in tests/ozow/*.test.mjs tests/web/*.test.mjs; do node "$t"; done
 
       - uses: actions/setup-python@v5
         with:

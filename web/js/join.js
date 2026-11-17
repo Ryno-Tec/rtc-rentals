@@ -2,6 +2,7 @@
 import { api, configured, isDemo, client, enterDemo } from './data.js';
 import { brand, icon, esc } from './shell.js';
 import { mountOAuth } from './oauth.js';
+import { rememberField } from './session-guard.js';
 
 document.getElementById('brand').innerHTML = brand('by Ryno-Tec');
 document.getElementById('points').innerHTML = [
@@ -46,6 +47,7 @@ function form(p) {
       <div class="field" id="consent-field"><label style="display:flex;gap:8px;align-items:flex-start;font-weight:450">
         <input type="checkbox" id="consent" style="width:auto;margin-top:3px">
         <span>I agree that RTC Rentals and my landlord process my details to manage my lease, as POPIA allows.</span></label></div>
+      ${rememberField()}
       <button class="btn" type="submit" id="submit">Create account</button>
     </form>`);
   const $ = id => document.getElementById(id);
