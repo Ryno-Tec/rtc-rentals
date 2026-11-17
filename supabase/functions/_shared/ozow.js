@@ -29,7 +29,11 @@ export async function getToken({ base, clientId, clientSecret, scope = 'payments
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope, grant_type: 'client_credentials' }).toString(),
   });
-  if (!res.ok) throw new OzowError(res.status === 400 || res.status === 401 ? 'Ozow rejected the Client ID or Client Secret.' : `Ozow sign-in failed (${res.status}).`, res.status);
+  if (!res.ok) {
+    // Keep Ozow's own explanation (never contains our secret) so the owner and Ryno-Tec can see why.
+    const why = (await (res.text ? res.text() : Promise.resolve('')).catch(() => '')).replace(/\s+/g, ' ').slice(0, 300);
+    throw new OzowError((res.status === 400 || res.status === 401 ? 'Ozow rejected the Client ID or Client Secret.' : `Ozow sign-in failed (${res.status}).`) + (why ? ` Ozow said: ${why}` : ''), res.status);
+  }
   const j = await res.json();
   const ttl = Math.max(60, Number(j.expires_in) || 3600) - 60;
   tokens.set(key, { token: j.access_token, until: now() + ttl * 1000 });
