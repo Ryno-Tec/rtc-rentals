@@ -9,17 +9,22 @@
 
 **One-off setup**
 1. Run `supabase/migrations/011_payments_billing.sql` in the Supabase SQL editor.
-2. Run `012_ozow_one_api.sql` too.
+2. Run `012_ozow_one_api.sql` too (and 013–016 in order; 016 adds Private Key + API Key accounts).
 3. Supabase → Database → Extensions → enable `pg_cron`, then run the last `do $$ … $$` block of 011 again to schedule monthly invoices.
 3. Supabase → Account → Access tokens → create one. GitHub repo → Settings → Secrets and variables → Actions:
    - secret `SUPABASE_ACCESS_TOKEN` (deploys the two server functions on every push)
-   - Ryno-Tec's own Ozow (One API): secrets `RTC_OZOW_SITE_CODE`, `RTC_OZOW_CLIENT_ID`, `RTC_OZOW_CLIENT_SECRET`;
+   - Ryno-Tec's own Ozow: secret `RTC_OZOW_SITE_CODE` plus either `RTC_OZOW_CLIENT_ID` + `RTC_OZOW_CLIENT_SECRET` (One API)
+     or `RTC_OZOW_PRIVATE_KEY` + `RTC_OZOW_API_KEY` (original API). Never store the Payout API Key;
      variable `RTC_OZOW_IS_TEST` = `true` only for Ozow staging credentials. The token needs Edge Functions secrets write.
 4. Each landlord connects their own Ozow under **Billing & payments**.
 
 **Server functions** (`supabase/functions`)
 Ozow One API (`one.ozow.com`; staging `stagingone.ozow.com`): Client ID + Client Secret → bearer token → `POST /v1/payments`
 → redirect to `redirectUrl`. The outcome is always read from `GET /v1/payments/{id}/transactions` (`Successful` = paid).
+Ozow original API (accounts issued a Private Key + API Key, `ozow_accounts.method = 'classic'`):
+`POST api.ozow.com/PostPaymentRequest` with the `ApiKey` header and a SHA-512 `HashCheck` (fields in Ozow's order + Private Key,
+lower-cased) → redirect to `url`. The outcome is read from `GET /GetTransactionByReference` (`Complete` = paid). Notifications'
+`Hash` is checked (`bad_signature` alert if wrong), but the API answer decides. Capitec Pay recurring is One API only.
 - `ozow-pay` – signed in; checks the tenant owns the rent month (or the owner the invoice), creates the Ozow payment.
 - `ozow-notify` – Ozow's notify URL; only finds the payment, then asks Ozow's API for the outcome.
 - `ozow-check` – the browser calls it after returning from Ozow; same check, for the person who started the payment.
@@ -42,8 +47,8 @@ no person or browser can read them back from the app.
 
 | Credential | Where it lives | Rotate |
 |---|---|---|
-| Ryno-Tec Ozow Client Secret | GitHub secret `RTC_OZOW_CLIENT_SECRET` → Supabase function secret | every 12 months, when someone with dashboard access leaves, or on any suspicion |
-| A landlord's Ozow Client Secret | `ozow_secrets` (write-only) | landlord's choice; they paste the new one in Billing & payments → Edit connection |
+| Ryno-Tec Ozow Client Secret or Private Key / API Key | GitHub secrets `RTC_OZOW_CLIENT_SECRET` or `RTC_OZOW_PRIVATE_KEY` / `RTC_OZOW_API_KEY` → Supabase function secrets | every 12 months, when someone with dashboard access leaves, or on any suspicion |
+| A landlord's Ozow Client Secret or Private Key / API Key | `ozow_secrets` (write-only) | landlord's choice; they paste the new one in Billing & payments → Edit connection |
 | Supabase access token (deploys) | GitHub secret `SUPABASE_ACCESS_TOKEN` | before it expires (90 days) |
 | Supabase service role key | Supabase only, never copied anywhere | if exposed: Supabase → Settings → API → roll |
 

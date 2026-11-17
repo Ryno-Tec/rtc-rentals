@@ -6,7 +6,7 @@ export const saDate = (d = new Date()) => new Date(d.getTime() + 2 * 3600e3).toI
 
 export async function ozowFor(admin, landlordId) {
   const c = await credentialsFor(admin, 'rent', landlordId);
-  if (!c) return null;
+  if (!c || c.method !== 'one') return null;           // Capitec Pay recurring is One API only
   const base = ozowBase(c.isTest);
   return { ...c, base, token: await getToken({ base, clientId: c.clientId, clientSecret: c.clientSecret, scope: 'subscriptions' }) };
 }

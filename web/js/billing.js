@@ -18,7 +18,7 @@ const MSTATUS = { pending: ['soon', 'Waiting for approval'], active: ['ok', 'On'
 
 function ozowCard() {
   const o = d.ozow;
-  const state = !o ? ['muted', 'Not connected'] : !o.enabled ? ['soon', 'Switched off'] : o.is_test ? ['info', 'Test (Ozow staging)'] : ['ok', 'Live'];
+  const state = !o ? ['muted', 'Not connected'] : !o.enabled ? ['soon', 'Switched off'] : o.is_test ? ['info', 'Test mode'] : ['ok', 'Live'];
   return `
     <section class="card" aria-labelledby="oz-h">
       <div class="card-head"><h2 id="oz-h">Online rent payments</h2><span class="pill pill-${state[0]}" id="oz-state">${state[1]}</span></div>
@@ -27,8 +27,8 @@ function ozowCard() {
           Ryno-Tec never holds your rent. Payments show as paid here automatically, with a receipt for the tenant.</p>
         ${o ? `<dl class="kv">
             <div><dt>Site Code</dt><dd><code class="ref">${esc(o.site_code)}</code></dd></div>
-            <div><dt>Client Secret</dt><dd>Saved, ends in <code>${esc(o.key_hint || '····')}</code>. It can’t be viewed again.</dd></div>
-            <div><dt>Mode</dt><dd>${o.is_test ? 'Test: Ozow’s staging system, no real money moves.' : 'Live payments'}</dd></div>
+            <div><dt>${o.method === 'classic' ? 'Private Key + API Key' : 'Client Secret'}</dt><dd>Saved${o.method === 'classic' ? ' (Private Key' : ''} ends in <code>${esc(o.key_hint || '····')}</code>${o.method === 'classic' ? ')' : ''}. ${o.method === 'classic' ? 'They' : 'It'} can’t be viewed again.</dd></div>
+            <div><dt>Mode</dt><dd>${o.is_test ? 'Test: no real money moves.' : 'Live payments'}</dd></div>
           </dl>
           <div class="btn-row" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" type="button" data-action="ozow">Edit connection</button>
@@ -37,7 +37,7 @@ function ozowCard() {
           </div>`
         : `<ol class="steps-list" style="padding-left:18px;margin:10px 0 14px;line-height:1.6">
             <li>Open a business account at <a href="https://ozow.com" target="_blank" rel="noopener">ozow.com</a> and finish their checks.</li>
-            <li>In the Ozow dashboard, copy your <b>Site Code</b> (under <b>Sites</b>), then the <b>Client ID</b> and <b>Client Secret</b> (under <b>One API Clients</b>).</li>
+            <li>In the Ozow dashboard, copy your <b>Site Code</b> (under <b>Sites</b>), then either the <b>Client ID</b> and <b>Client Secret</b> (One API Clients) or the <b>Private Key</b> and <b>API Key</b> (Merchant details), whichever Ozow gave you.</li>
             <li>Paste them here. Your first tenant payment is the real test: start with a small amount if you want to be sure.</li>
           </ol>
           <button class="btn" type="button" data-action="ozow">${icon.plus}Connect Ozow</button>`}
@@ -122,8 +122,8 @@ function render() {
 function apSettings() {
   const st = ap.settings;
   openModal({ title: 'Automatic payments and reminders', submitLabel: 'Save',
-    body: `<label class="check"><input type="checkbox" name="ozow_capitec" ${st.ozow_capitec ? 'checked' : ''} ${d.ozow ? '' : 'disabled'}> Capitec Pay recurring (through your Ozow account)</label>
-      <p class="hint" style="margin:4px 0 14px 24px">${d.ozow ? 'Ask Ozow (support@ozow.com) to switch on recurring payments for your account first.' : 'Connect Ozow first.'}</p>
+    body: `<label class="check"><input type="checkbox" name="ozow_capitec" ${st.ozow_capitec ? 'checked' : ''} ${d.ozow && d.ozow.method !== 'classic' ? '' : 'disabled'}> Capitec Pay recurring (through your Ozow account)</label>
+      <p class="hint" style="margin:4px 0 14px 24px">${!d.ozow ? 'Connect Ozow first.' : d.ozow.method === 'classic' ? 'Needs Ozow One API keys (Client ID and Client Secret). Your account uses a Private Key and API Key, so ask Ozow for One API access first.' : 'Ask Ozow (support@ozow.com) to switch on recurring payments for your account first.'}</p>
       <label class="check"><input type="checkbox" name="netcash" ${st.netcash ? 'checked' : ''}> DebiCheck debit orders (through your Netcash account)</label>
       <div class="field" style="margin:8px 0 0 24px"><label for="nc-key">Netcash debit order service key${st.netcash_hint ? ` <span class="muted">(saved, ends ${esc(st.netcash_hint)}; leave empty to keep)</span>` : ''}</label>
         <input id="nc-key" name="netcash_key" type="password" autocomplete="off" spellcheck="false"></div>
@@ -176,24 +176,44 @@ function planForm() {
 }
 
 function connectForm() {
-  const o = d.ozow;
+  const o = d.ozow, cur = o?.method || 'one';
+  const keep = m => (o && cur === m ? ' <span class="muted">— leave empty to keep</span>' : '');
   openModal({
     title: o ? 'Edit Ozow connection' : 'Connect Ozow', submitLabel: 'Save',
     body: `
       <div class="field"><label for="oz-site">Site Code <span class="muted">(Ozow dashboard → Sites)</span></label><input id="oz-site" name="site_code" required maxlength="50" autocomplete="off" value="${esc(o?.site_code || '')}" placeholder="e.g. ABC-ABC-001"></div>
-      <div class="field"><label for="oz-id">Client ID <span class="muted">(One API Clients)</span>${o ? ' <span class="muted">— leave empty to keep</span>' : ''}</label>
-        <input id="oz-id" name="client_id" autocomplete="off" spellcheck="false" ${o ? '' : 'required'}></div>
-      <div class="field"><label for="oz-secret">Client Secret${o ? ' <span class="muted">— leave empty to keep</span>' : ''}</label>
-        <input id="oz-secret" name="client_secret" type="password" autocomplete="off" spellcheck="false" ${o ? '' : 'required'}></div>
-      <label class="check"><input type="checkbox" name="is_test" ${o?.is_test ? 'checked' : ''}> These are Ozow <b>staging</b> (test) credentials</label>
-      <p class="hint" style="margin:12px 0 0">Stored on the server and only used to create payments with Ozow. Nobody, including you, can view the secret here again.</p>`,
+      <fieldset class="field" style="border:0;padding:0;margin:0 0 12px"><legend style="font-weight:600;margin-bottom:6px">Which keys did Ozow give you?</legend>
+        <label class="check"><input type="radio" name="method" value="classic" ${cur === 'classic' ? 'checked' : ''}> Private Key and API Key</label>
+        <label class="check"><input type="radio" name="method" value="one" ${cur === 'one' ? 'checked' : ''}> Client ID and Client Secret (One API)</label></fieldset>
+      <div data-for="classic">
+        <div class="field"><label for="oz-pk">Private Key <span class="muted">(Merchant details)</span>${keep('classic')}</label>
+          <input id="oz-pk" name="private_key" type="password" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="oz-api">API Key${keep('classic')}</label>
+          <input id="oz-api" name="api_key" type="password" autocomplete="off" spellcheck="false"></div>
+        <p class="hint" style="margin:0 0 12px">Not the <b>Payout API Key</b>: RTC Rentals never sends money out of your account, so don’t enter that one anywhere.</p>
+      </div>
+      <div data-for="one">
+        <div class="field"><label for="oz-id">Client ID <span class="muted">(One API Clients)</span>${keep('one')}</label>
+          <input id="oz-id" name="client_id" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="oz-secret">Client Secret${keep('one')}</label>
+          <input id="oz-secret" name="client_secret" type="password" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <label class="check"><input type="checkbox" name="is_test" ${o?.is_test ? 'checked' : ''}> These are Ozow <b>test</b> (staging) keys</label>
+      <p class="hint" style="margin:12px 0 0">Stored on the server and only used to create and check payments with Ozow. Nobody, including you, can view the keys here again.</p>`,
     async onSubmit(form) {
       const v = formData(form);
       await api.saveOzow({ ...v, enabled: o ? o.enabled : true });
-      toast(v.is_test ? 'Ozow connected to staging (test)' : 'Ozow connected. Tenants can pay online.');
+      toast(v.is_test ? 'Ozow connected in test mode' : 'Ozow connected. Tenants can pay online.');
       await refresh();
     },
   });
+  const form = document.querySelector('#oz-site')?.form;
+  const show = () => {
+    const m = form.querySelector('[name=method]:checked')?.value || 'one';
+    form.querySelectorAll('[data-for]').forEach(el => { el.hidden = el.dataset.for !== m; });
+  };
+  form?.querySelectorAll('[name=method]').forEach(r => r.addEventListener('change', show));
+  if (form) show();
 }
 
 view.addEventListener('click', async e => {
@@ -209,7 +229,7 @@ view.addEventListener('click', async e => {
       await api.stopMandate(id); toast('Stopped'); await refresh();
     }
     if (action === 'toggle') {
-      await api.saveOzow({ site_code: d.ozow.site_code, is_test: d.ozow.is_test, enabled: !d.ozow.enabled });
+      await api.saveOzow({ site_code: d.ozow.site_code, method: d.ozow.method || 'one', is_test: d.ozow.is_test, enabled: !d.ozow.enabled });
       toast(d.ozow.enabled ? 'Online payments switched off' : 'Online payments switched on'); await refresh();
     }
     if (action === 'disconnect' && await confirmDialog('Disconnect Ozow?', 'Your saved keys are deleted. Tenants go back to paying by EFT.', 'Disconnect')) {

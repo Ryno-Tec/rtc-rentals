@@ -13,7 +13,7 @@ const live = {
     const sb = await client();
     const [me, ozow, settings, fees, invoices, units, props] = await Promise.all([
       sb.from('landlords').select('tier, custom_price').single(),
-      sb.from('ozow_accounts').select('site_code, is_test, enabled, key_hint, updated_at').maybeSingle(),
+      sb.from('ozow_accounts').select('*').maybeSingle(),
       sb.from('platform_settings').select('*').maybeSingle(),
       sb.from('platform_fees').select('*').is('invoice_id', null).order('created_at', { ascending: false }),
       sb.from('platform_invoices').select('*').order('period_month', { ascending: false }),
@@ -47,8 +47,12 @@ const live = {
   async stopMandate(id) { const sb = await client(); check(await sb.rpc('cancel_mandate', { p_mandate: id })); },
   async saveOzow(v) {
     const sb = await client();
-    check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_client_id: v.client_id || '', p_client_secret: v.client_secret || '',
-      p_is_test: Boolean(v.is_test), p_enabled: v.enabled !== false }));
+    if ((v.method || 'one') === 'classic')
+      check(await sb.rpc('save_ozow_classic', { p_site_code: v.site_code, p_private_key: v.private_key || '', p_api_key: v.api_key || '',
+        p_is_test: Boolean(v.is_test), p_enabled: v.enabled !== false }));
+    else
+      check(await sb.rpc('save_ozow_account', { p_site_code: v.site_code, p_client_id: v.client_id || '', p_client_secret: v.client_secret || '',
+        p_is_test: Boolean(v.is_test), p_enabled: v.enabled !== false }));
   },
   async removeOzow() { const sb = await client(); check(await sb.rpc('remove_ozow_account')); },
   async payInvoice(id) { return startOzow({ invoice_id: id }); },
@@ -115,10 +119,21 @@ const demo = {
   async saveOzow(v) {
     const s = load(), b = billing(s);
     if (!/^[A-Za-z0-9-]{3,50}$/.test(v.site_code || '')) throw new DataError('Enter the Site Code from your Ozow dashboard');
-    if (!b.ozow && (!v.client_id || !v.client_secret)) throw new DataError('Enter the Client ID and Client Secret from your Ozow dashboard (One API Clients)');
-    if (v.client_secret && v.client_secret.length < 16) throw new DataError('That Client Secret looks too short');
-    b.ozow = { site_code: v.site_code, is_test: Boolean(v.is_test), enabled: v.enabled !== false,
-      key_hint: v.client_secret ? v.client_secret.slice(-4) : b.ozow.key_hint, updated_at: new Date().toISOString() };
+    const method = v.method || 'one', same = b.ozow && (b.ozow.method || 'one') === method;
+    let secret;
+    if (method === 'classic') {
+      if (!same && (!v.private_key || !v.api_key)) throw new DataError('Enter the Private Key and API Key from your Ozow dashboard (Merchant details)');
+      if (v.private_key && v.private_key.length < 16) throw new DataError('That Private Key doesn’t look right');
+      if (v.api_key && v.api_key.length < 16) throw new DataError('That API Key doesn’t look right');
+      if (v.private_key && v.private_key === v.api_key) throw new DataError('The Private Key and API Key are different keys. Check you copied each one.');
+      secret = v.private_key;
+    } else {
+      if (!same && (!v.client_id || !v.client_secret)) throw new DataError('Enter the Client ID and Client Secret from your Ozow dashboard (One API Clients)');
+      if (v.client_secret && v.client_secret.length < 16) throw new DataError('That Client Secret looks too short');
+      secret = v.client_secret;
+    }
+    b.ozow = { site_code: v.site_code, is_test: Boolean(v.is_test), enabled: v.enabled !== false, method,
+      key_hint: secret ? secret.slice(-4) : b.ozow.key_hint, updated_at: new Date().toISOString() };
     save(s); emit();
   },
   async removeOzow() { const s = load(); billing(s).ozow = null; save(s); emit(); },

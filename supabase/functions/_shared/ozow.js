@@ -136,3 +136,85 @@ export const subscriptionTransactions = ({ base, token, id, fetchImpl = fetch })
   call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}/transactions`, token).then(j => j.results || j.value || (Array.isArray(j) ? j : []));
 export const cancelSubscription = ({ base, token, id, fetchImpl = fetch }) =>
   call(fetchImpl, `${base}/v1/subscriptions/${encodeURIComponent(id)}/cancel`, token, 'POST', { merchantReference: '' });
+
+// ---------------------------------------------------------------------------------------------
+// Ozow's original API, for merchants given a Private Key + API Key instead of One API clients.
+//   create:  POST {api}/PostPaymentRequest   ApiKey header, JSON fields + HashCheck -> { paymentRequestId, url, errorMessage }
+//   confirm: GET  {api}/GetTransactionByReference?siteCode&transactionReference&IsTest -> Transaction[]
+//   notify:  form post signed with Hash (checked here, but the outcome is still fetched from Ozow)
+// HashCheck: the sent fields in Ozow's order, then the Private Key, lower-cased, SHA-512 hex.
+// ---------------------------------------------------------------------------------------------
+export const CLASSIC_API = 'https://api.ozow.com';
+
+const REQUEST_ORDER = ['SiteCode', 'CountryCode', 'CurrencyCode', 'Amount', 'TransactionReference', 'BankReference',
+  'Optional1', 'Optional2', 'Optional3', 'Optional4', 'Optional5', 'Customer',
+  'CancelUrl', 'ErrorUrl', 'SuccessUrl', 'NotifyUrl', 'IsTest'];
+const RESPONSE_ORDER = ['SiteCode', 'TransactionId', 'TransactionReference', 'Amount', 'Status',
+  'Optional1', 'Optional2', 'Optional3', 'Optional4', 'Optional5', 'CurrencyCode', 'IsTest', 'StatusMessage'];
+
+export async function sha512Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const present = v => v !== undefined && v !== null && v !== '';
+
+export async function signRequest(fields, privateKey) {
+  const joined = REQUEST_ORDER.filter(k => present(fields[k])).map(k => String(fields[k])).join('') + privateKey;
+  return sha512Hex(joined.toLowerCase());
+}
+
+/** True when a notification carries Ozow's valid signature for this Private Key (constant-time compare). */
+export async function verifyResponse(params, privateKey) {
+  if (!params || !params.Hash || !privateKey) return false;
+  const joined = RESPONSE_ORDER.map(k => (params[k] ?? '')).join('') + privateKey;
+  const mine = (await sha512Hex(joined.toLowerCase())).replace(/^0+/, '');
+  const theirs = String(params.Hash).toLowerCase().replace(/^0+/, '');
+  if (mine.length !== theirs.length) return false;
+  let diff = 0;
+  for (let i = 0; i < mine.length; i++) diff |= mine.charCodeAt(i) ^ theirs.charCodeAt(i);
+  return diff === 0;
+}
+
+export async function classicFields({ siteCode, privateKey, amount, reference, bankRef, cancelUrl, errorUrl, successUrl, notifyUrl, isTest }) {
+  const fields = {
+    SiteCode: siteCode, CountryCode: 'ZA', CurrencyCode: 'ZAR', Amount: Number(amount).toFixed(2),
+    TransactionReference: reference, BankReference: bankReference(bankRef),
+    CancelUrl: cancelUrl, ErrorUrl: errorUrl, SuccessUrl: successUrl, NotifyUrl: notifyUrl,
+    IsTest: isTest ? 'true' : 'false',
+  };
+  fields.HashCheck = await signRequest(fields, privateKey);
+  return fields;
+}
+
+const pick = (o, k) => o?.[k] ?? o?.[k[0].toLowerCase() + k.slice(1)];
+
+export async function classicCreate({ apiKey, fields, fetchImpl = fetch }) {
+  const res = await fetchImpl(`${CLASSIC_API}/PostPaymentRequest`, {
+    method: 'POST',
+    headers: { ApiKey: apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  const j = await res.json().catch(() => ({}));
+  const url = pick(j, 'Url') ?? j.URL, err = pick(j, 'ErrorMessage');
+  if (!res.ok || !url) throw new OzowError(err || `Ozow couldn’t create the payment (${res.status}).`, res.status === 401 || res.status === 403 ? 401 : res.ok ? 400 : res.status);
+  return { id: pick(j, 'PaymentRequestId') || fields.TransactionReference, redirectUrl: url };
+}
+
+// The outcome Ozow holds for our reference: a Complete transaction wins, otherwise the latest attempt.
+export async function classicOutcome({ apiKey, siteCode, reference, isTest, fetchImpl = fetch }) {
+  const q = new URLSearchParams({ siteCode, transactionReference: reference, IsTest: isTest ? 'true' : 'false' });
+  const res = await fetchImpl(`${CLASSIC_API}/GetTransactionByReference?${q}`, { headers: { ApiKey: apiKey, Accept: 'application/json' } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new OzowError(`Ozow status check failed (${res.status}).`, res.status);
+  const raw = await res.json().catch(() => []);
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  if (!list.length) return null;
+  const st = t => String(pick(t, 'Status') || '');
+  const ok = list.find(t => st(t).toLowerCase() === 'complete');
+  const t = ok || [...list].sort((a, b) => String(pick(b, 'CreatedDate')).localeCompare(String(pick(a, 'CreatedDate'))))[0];
+  const known = ['complete', 'cancelled', 'error', 'abandoned', 'pending', 'pendinginvestigation'];
+  if (!known.includes(st(t).toLowerCase())) return { status: null, raw: t };
+  return { status: st(t), transactionId: pick(t, 'TransactionId') ?? null, amount: Number(pick(t, 'Amount')),
+    currency: pick(t, 'CurrencyCode') ?? null, merchantReference: pick(t, 'TransactionReference') ?? null,
+    siteCode: pick(t, 'SiteCode') ?? null, reason: pick(t, 'StatusMessage') || null, raw: t };
+}

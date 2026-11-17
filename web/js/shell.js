@@ -200,6 +200,7 @@ export function formData(form) {
   for (const el of form.elements) {
     if (!el.name) continue;
     if (el.type === 'checkbox') out[el.name] = el.checked;
+    else if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
     else if (el.type === 'number') out[el.name] = el.value === '' ? null : Number(el.value);
     else out[el.name] = el.value.trim() === '' ? null : el.value.trim();
   }

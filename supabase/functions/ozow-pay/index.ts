@@ -3,7 +3,7 @@
 //   { invoice_id }  an owner paying Ryno-Tec's invoice to Ryno-Tec's Ozow account
 // The Client Secrets never leave the server.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { ozowBase, getToken, paymentBody, createPayment, newReference, OzowError } from '../_shared/ozow.js';
+import { ozowBase, getToken, paymentBody, createPayment, newReference, OzowError, classicFields, classicCreate } from '../_shared/ozow.js';
 import { credentialsFor } from '../_shared/settle.js';
 import { SITE_URL, cors, json, fail } from '../_shared/http.js';
 
@@ -59,14 +59,20 @@ Deno.serve(async (req) => {
     }).select('id').single();
     if (error) return fail(500, 'Couldn’t start the payment. Try again.');
 
-    const base = ozowBase(creds!.isTest);
+    const returnUrl = `${SITE_URL}/${page}?ozow=back&ref=${reference}${kind === 'rent' ? '#payments' : ''}`;
+    const notifyUrl = `${url}/functions/v1/ozow-notify`;
     try {
-      const token = await getToken({ base, clientId: creds!.clientId, clientSecret: creds!.clientSecret });
-      const pay = await createPayment({ base, token, body: paymentBody({
-        siteCode: creds!.siteCode, amount, reference, bankRef,
-        returnUrl: `${SITE_URL}/${page}?ozow=back&ref=${reference}${kind === 'rent' ? '#payments' : ''}`,
-        notifyUrl: `${url}/functions/v1/ozow-notify`,
-      }) });
+      let pay: { id: string; redirectUrl: string };
+      if (creds!.method === 'classic') {
+        // Private Key + API Key: signed request created server-side; Ozow returns the payment page address.
+        const fields = await classicFields({ siteCode: creds!.siteCode, privateKey: creds!.privateKey, amount, reference, bankRef,
+          cancelUrl: returnUrl, errorUrl: returnUrl, successUrl: returnUrl, notifyUrl, isTest: creds!.isTest });
+        pay = await classicCreate({ apiKey: creds!.apiKey, fields });
+      } else {
+        const base = ozowBase(creds!.isTest);
+        const token = await getToken({ base, clientId: creds!.clientId, clientSecret: creds!.clientSecret });
+        pay = await createPayment({ base, token, body: paymentBody({ siteCode: creds!.siteCode, amount, reference, bankRef, returnUrl, notifyUrl }) });
+      }
       await admin.from('online_payments').update({ ozow_payment_id: pay.id }).eq('id', op.id);
       return json(200, { redirectUrl: pay.redirectUrl, reference, is_test: creds!.isTest });
     } catch (e) {

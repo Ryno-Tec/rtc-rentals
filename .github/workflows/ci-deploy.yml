@@ -62,6 +62,8 @@ jobs:
       RTC_OZOW_SITE_CODE: ${{ secrets.RTC_OZOW_SITE_CODE }}
       RTC_OZOW_CLIENT_ID: ${{ secrets.RTC_OZOW_CLIENT_ID }}
       RTC_OZOW_CLIENT_SECRET: ${{ secrets.RTC_OZOW_CLIENT_SECRET }}
+      RTC_OZOW_PRIVATE_KEY: ${{ secrets.RTC_OZOW_PRIVATE_KEY }}
+      RTC_OZOW_API_KEY: ${{ secrets.RTC_OZOW_API_KEY }}
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
     steps:
@@ -85,6 +87,9 @@ jobs:
           SET=()
           if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then
             SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_CLIENT_ID=$RTC_OZOW_CLIENT_ID" "RTC_OZOW_CLIENT_SECRET=$RTC_OZOW_CLIENT_SECRET" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
+          elif [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_PRIVATE_KEY" ] && [ -n "$RTC_OZOW_API_KEY" ]; then
+            # Ozow accounts issued a Private Key + API Key (original API).
+            SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY" "RTC_OZOW_API_KEY=$RTC_OZOW_API_KEY" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
           fi
           [ -n "$BREVO_API_KEY" ] && SET+=("BREVO_API_KEY=$BREVO_API_KEY")
           if [ ${#SET[@]} -gt 0 ]; then
