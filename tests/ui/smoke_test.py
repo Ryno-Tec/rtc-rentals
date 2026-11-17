@@ -141,7 +141,9 @@ with sync_playwright() as pw:
             page.locator(".modal [type=submit]").click()
             expect(page.locator(".modal")).to_contain_text("Rent receipt", timeout=8000)
             page.screenshot(path=SHOTS / "tenant-desktop-receipt.png")
-            page.get_by_role("button", name="Done").click()
+            expect(page.locator(".modal")).to_contain_text("RTC-RCT-")
+            expect(page.locator(".modal")).to_contain_text("Ryno-Tec Consulting (Pty) Ltd")
+            page.locator(".modal .modal-foot [data-close]").click()
             expect(rent).to_contain_text("Paid up")
 
             # Rent history

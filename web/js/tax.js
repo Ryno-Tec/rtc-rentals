@@ -1,4 +1,5 @@
 // Owner: rental income and expenses per SARS tax year, per property, for the ITR12 rental section.
+import { fileName } from './paper.js';
 import { api } from './data.js';
 import { maintApi } from './maint-data.js';
 import { taxApi, EXPENSE_CATEGORIES, taxYearOf, taxYearRange, taxYearLabel, inYear } from './tax-data.js';
@@ -153,7 +154,7 @@ list.addEventListener('change', e => { if (e.target.id === 'ty') { year = Number
 list.addEventListener('click', e => {
   const a = e.target.closest('[data-action]'); if (!a) return;
   if (a.dataset.action === 'csv') csv();
-  if (a.dataset.action === 'print') printPage();
+  if (a.dataset.action === 'print') printPage(fileName('TaxReport', profile.full_name, `${year - 1}-${String(year).slice(2)}`));
   if (a.dataset.action === 'edit') expenseForm(expenses.find(x => x.id === a.dataset.id));
 });
 await refresh();

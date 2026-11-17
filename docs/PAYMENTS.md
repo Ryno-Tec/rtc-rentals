@@ -9,7 +9,7 @@
 
 **One-off setup**
 1. Run `supabase/migrations/011_payments_billing.sql` in the Supabase SQL editor.
-2. Run `012_ozow_one_api.sql` too (and 013–016 in order; 016 adds Private Key + API Key accounts).
+2. Run `012_ozow_one_api.sql` too (and 013–017 in order; 016 adds Private Key + API Key accounts, 017 receipt and lease numbers).
 3. Supabase → Database → Extensions → enable `pg_cron`, then run the last `do $$ … $$` block of 011 again to schedule monthly invoices.
 3. Supabase → Account → Access tokens → create one. GitHub repo → Settings → Secrets and variables → Actions:
    - secret `SUPABASE_ACCESS_TOKEN` (deploys the two server functions on every push)

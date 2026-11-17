@@ -1,4 +1,5 @@
 // Agency: the owners whose properties you manage, your team's logins, and monthly owner statements.
+import { fileName } from './paper.js';
 import { api } from './data.js';
 import { maintApi } from './maint-data.js';
 import { taxApi } from './tax-data.js';
@@ -164,7 +165,7 @@ view.addEventListener('click', async e => {
     if (action === 'member') memberForm(team.members.find(m => m.id === id));
     if (action === 'invite') await invite(id);
     if (action === 'payout') payoutForm();
-    if (action === 'print') printPage();
+    if (action === 'print') printPage(fileName('OwnerStatement', owners.find(o => o.id === stOwner)?.full_name, stMonth));
     if (action === 'del-payout' && await confirmDialog('Remove this payout?', 'It is taken off the statement.', 'Remove')) { await ag.deletePayout(id); await refresh(); }
   } catch (ex) { toast(ex.message, 'error'); }
 });

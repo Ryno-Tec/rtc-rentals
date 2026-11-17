@@ -408,7 +408,16 @@ function load() {
   try { const raw = store.get(DEMO_DATA); if (raw) return JSON.parse(raw); } catch { /* fall through */ }
   const s = seed(); save(s); return s;
 }
-function save(s) { store.set(DEMO_DATA, JSON.stringify(s)); }
+function save(s) { numberDemo(s); store.set(DEMO_DATA, JSON.stringify(s)); }
+// Demo copies of the database's receipt and lease numbers (017_document_numbers.sql).
+function numberDemo(s) {
+  s.counters = s.counters || {};
+  const next = (kind, at) => { const y = new Date(at || Date.now()).getFullYear(), k = kind + y; s.counters[k] = (s.counters[k] || 0) + 1;
+    return `RTC-${kind}-${y}-${String(s.counters[k]).padStart(6, '0')}`; };
+  for (const p of [...(s.payments || [])].sort((a, b) => String(a.paid_at).localeCompare(String(b.paid_at))))
+    if (!p.receipt_no && Number(p.amount_paid) > 0) p.receipt_no = next('RCT', p.paid_at);
+  for (const d of s.leaseDocs || []) if (!d.doc_no) d.doc_no = next('LSE', d.created_at);
+}
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }

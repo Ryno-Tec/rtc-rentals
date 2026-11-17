@@ -3,6 +3,7 @@
 import { esc, openModal, toast, icon } from './shell.js';
 import { signPad } from './sign-pad.js';
 import { DOC_STATUS } from './docs-data.js';
+import { paperHead, fileName } from './paper.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const fmtWhen = iso => {
@@ -26,6 +27,10 @@ export function waitingOn(doc) {
   }
   return out.length ? `Waiting for ${out.join(' and ')}.` : '';
 }
+
+const fmtDay = iso => iso ? new Date(iso).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+/** "RTCRentals-Lease-FreddieRick-RTC-LSE-2026-000004" */
+export const leaseFileName = doc => fileName('Lease', doc?.body?.parties?.tenant?.name, doc?.doc_no || (doc?.body?.summary || []).find(([k]) => k === 'Home')?.[1]?.split(',')[0]);
 
 function partyBlock(label, p = {}) {
   const row = (k, v) => v ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : '';
@@ -60,8 +65,11 @@ export function signaturesHtml(doc) {
 export function docHtml(doc, { audit = false } = {}) {
   const b = doc.body || {};
   const signed = (doc.signatures || []).length > 0;
-  return `<article class="lease-doc printable">
-    <header class="lease-head"><div class="lease-brand">RTC Rentals</div><h2>${esc(doc.title || b.title || 'Residential lease agreement')}</h2></header>
+  const status = { draft: 'Draft — not yet sent for signing', sent: 'Out for signing', signed: 'Signed by all parties', void: 'Cancelled' }[doc.status] || '';
+  return `<article class="lease-doc paper printable">
+    ${paperHead({ title: 'Lease agreement', number: doc.doc_no, numberLabel: 'Lease', date: fmtDay(doc.completed_at || doc.sent_at || doc.created_at),
+      extra: status ? `<div class="paper-status ${doc.status}">${esc(status)}</div>` : '' })}
+    <h2 class="lease-title">${esc(doc.title || b.title || 'Residential lease agreement')}</h2>
     <div class="lease-parties">${partyBlock('The Landlord', b.parties?.landlord)}${partyBlock('The Tenant', b.parties?.tenant)}</div>
     ${b.summary?.length ? `<section class="lease-summary"><h3>Key terms</h3><dl class="kv">${b.summary.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>` : ''}
     ${(b.sections || []).map((s, si) => `<section class="lease-section"><h3>${si + 1}. ${esc(s.heading)}</h3>
@@ -156,15 +164,20 @@ export async function runPartyAction(action, doc, { role, api, myName, refresh }
     await refresh();
     return true;
   }
-  if (action === 'print') { printPage(); return true; }
+  if (action === 'print') { printPage(leaseFileName(doc)); return true; }
   return false;
 }
 
-// Prints only the element marked .printable (the lease, or an inspection report).
-export function printPage() {
+// Prints only the element marked .printable (a lease, receipt, statement or report).
+// `name` becomes the saved PDF's file name. Android Chrome fires "afterprint" before its print
+// preview is drawn, so the print-only layout stays on until the person next taps or types.
+export function printPage(name) {
+  const before = document.title;
+  if (name) document.title = name;
   document.body.classList.add('print-doc');
-  const done = () => { document.body.classList.remove('print-doc'); window.removeEventListener('afterprint', done); };
-  window.addEventListener('afterprint', done);
+  const evs = ['pointerdown', 'keydown'];
+  const done = () => { document.body.classList.remove('print-doc'); document.title = before; evs.forEach(e => removeEventListener(e, done, true)); };
+  setTimeout(() => evs.forEach(e => addEventListener(e, done, true)), 400);
   window.print();
 }
 

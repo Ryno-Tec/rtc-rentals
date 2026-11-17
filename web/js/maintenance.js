@@ -1,4 +1,5 @@
 // Owner: every logged fault grouped by property, who it's assigned to, and the maintenance team.
+import { fileName } from './paper.js';
 import { api, isDemo } from './data.js';
 import { maintApi as m, STATUS, PRIORITY, CATEGORIES, isOpen } from './maint-data.js';
 import { mountShell, esc, icon, toast, openModal, formData, confirmDialog, money } from './shell.js';
@@ -305,7 +306,7 @@ list.addEventListener('click', async e => {
     if (a.dataset.action === 'edit-staff') staffForm(s);
     if (a.dataset.action === 'invite') await invite(s);
     if (a.dataset.action === 'contract-edit') contractForm(s);
-    if (a.dataset.action === 'print') printPage();
+    if (a.dataset.action === 'print') printPage(fileName('EmploymentContract', s?.full_name));
   } catch (ex) { toast(ex.message, 'error'); }
 });
 list.addEventListener('change', e => { if (e.target.id === 'f-prop') { filters.property = e.target.value; render(); } });

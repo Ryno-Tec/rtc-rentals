@@ -147,7 +147,7 @@ export function toast(message, kind = '') {
 
 // ---------- Modal ----------
 // openModal({ title, body (html), submitLabel, onSubmit(form) }) — onSubmit may throw to show an error.
-export function openModal({ title, body, submitLabel = 'Save', danger = false, cancel = true, onSubmit }) {
+export function openModal({ title, body, submitLabel = 'Save', danger = false, cancel = true, cancelLabel = 'Cancel', onSubmit }) {
   const prev = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
@@ -156,7 +156,7 @@ export function openModal({ title, body, submitLabel = 'Save', danger = false, c
       <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2>
         <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">${icon.close}</button></div>
       <div class="modal-body"><div class="form-error hidden" role="alert"></div>${body}</div>
-      <div class="modal-foot">${cancel ? '<button type="button" class="btn btn-ghost" data-close>Cancel</button>' : ''}
+      <div class="modal-foot">${cancel ? `<button type="button" class="btn btn-ghost" data-close>${esc(cancelLabel)}</button>` : ''}
         <button type="submit" class="btn ${danger ? 'btn-danger' : ''}">${esc(submitLabel)}</button></div>
     </form>`;
   document.body.appendChild(wrap);

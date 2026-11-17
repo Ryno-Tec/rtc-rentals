@@ -1,5 +1,7 @@
 import { api, PAY_METHODS, PROVINCES } from './data.js';
 import { mountShell, esc, money, icon, toast, openModal, formData } from './shell.js';
+import { receiptHtml, paperHead, fileName } from './paper.js';
+import { printPage } from './lease-ui.js';
 import { monthKey, addMonths, monthLabel, today, rentFor, currentRent, chargeMonths, dueDate,
   chargeState, STATE_LABEL, balance, eftReference, dueDayText } from './ledger.js';
 
@@ -197,38 +199,24 @@ function editForm(l, p) {
   });
 }
 
-// Printable documents open in a new tab; the tenant gets a PDF via the browser's Save as PDF.
-function printable(title, inner) {
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups for this site to open the document.', 'error'); return; }
-  w.document.write(`<!doctype html><html lang="en-ZA"><head><meta charset="utf-8"><title>${esc(title)}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;max-width:720px;margin:32px auto;padding:0 20px}
-    h1{font-size:22px;margin:0 0 4px}.muted{color:#6f665f}table{width:100%;border-collapse:collapse;margin-top:16px}
-    th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #ebe5df}td.r,th.r{text-align:right}.total td{font-weight:700;border-top:2px solid #1a1a1a}
-    .head{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid #ff6b35;padding-bottom:12px;margin-bottom:16px}
-    .print{margin-top:24px}@media print{.print{display:none}body{margin:0}}</style></head><body>${inner}
-    <p class="print"><button onclick="print()">Print or save as PDF</button></p></body></html>`);
-  w.document.close();
-}
 const propertyOf = l => properties.find(p => p.id === l.unit?.property?.id);
 const addressOf = l => { const p = propertyOf(l); return p ? [p.street_address, p.suburb, p.city, PROVINCES[p.province], p.postal_code].filter(Boolean).join(', ') : ''; };
-const docHead = (title, l) => `<div class="head"><div><h1>${esc(title)}</h1>
-  <div class="muted">${esc(profile.full_name || '')}${profile.email ? ' · ' + esc(profile.email) : ''}</div></div>
-  <div style="text-align:right"><b>${esc(l.tenant?.full_name || '')}</b><br>${esc(l.unit?.label || '')}<br><span class="muted">${esc(addressOf(l))}</span></div></div>`;
 
 function receipt(l, p) {
-  const no = `R-${p.period_month.slice(0, 7).replace('-', '')}-${p.id.slice(0, 4).toUpperCase()}`;
-  printable(`Receipt ${no}`, `${docHead('Rent receipt', l)}
-    <table><tbody>
-      <tr><th>Receipt number</th><td>${no}</td></tr>
-      <tr><th>Rent for</th><td>${esc(monthLabel(p.period_month))}</td></tr>
-      <tr><th>Received on</th><td>${esc(fmtDate(p.paid_at))}</td></tr>
-      <tr><th>Paid by</th><td>${esc(PAY_METHODS[p.method] || p.method || '')}${p.reference ? ' · ref ' + esc(p.reference) : ''}</td></tr>
-      <tr><th>Rent due</th><td>${money(p.amount_due)}</td></tr>
-      <tr class="total"><td>Amount received</td><td>${money(p.amount_paid)}</td></tr>
-    </tbody></table>
-    <p class="muted">${Number(p.amount_paid) >= Number(p.amount_due) ? `Rent for ${esc(monthLabel(p.period_month))} is paid in full. Thank you.` : `Balance for this month: ${money(Number(p.amount_due) - Number(p.amount_paid))}.`}</p>`);
+  const number = p.receipt_no || '';
+  openModal({
+    title: 'Rent receipt', submitLabel: 'Print or save as PDF', cancelLabel: 'Close',
+    body: receiptHtml({
+      number, issued: fmtDate(p.paid_at || today()), month: monthLabel(p.period_month),
+      paidOn: p.paid_at ? fmtDate(p.paid_at) : '', late: p.paid_at && l ? p.paid_at.slice(0, 10) > dueDate(l, p.period_month) : false,
+      method: PAY_METHODS[p.method] || p.method || '', reference: p.provider_ref || p.reference || '',
+      due: p.amount_due, paid: p.amount_paid,
+      tenant: { name: l.tenant?.full_name, email: l.tenant?.email },
+      home: [l.unit?.label, addressOf(l)].filter(Boolean).join(', '),
+      landlord: { name: profile.full_name, email: profile.email, phone: profile.phone },
+    }),
+    async onSubmit() { printPage(fileName('Receipt', l.tenant?.full_name, number || monthLabel(p.period_month))); return false; },
+  });
 }
 
 function statement(l) {
@@ -236,12 +224,23 @@ function statement(l) {
   let run = 0;
   const lines = rows.map(p => {
     run += Number(p.amount_due) - Number(p.amount_paid);
-    return `<tr><td>${esc(monthLabel(p.period_month))}</td><td class="r">${money(p.amount_due)}</td><td class="r">${money(p.amount_paid)}</td><td>${p.paid_at ? esc(fmtDate(p.paid_at)) : ''}</td><td class="r">${money(run)}</td></tr>`;
+    return `<tr><td>${esc(monthLabel(p.period_month))}</td><td class="right num">${money(p.amount_due)}</td><td class="right num">${money(p.amount_paid)}</td>
+      <td>${p.paid_at ? esc(fmtDate(p.paid_at)) : ''}${p.receipt_no ? `<div class="unit-sub"><code>${esc(p.receipt_no)}</code></div>` : ''}</td><td class="right num">${money(run)}</td></tr>`;
   }).join('');
-  printable(`Rent statement · ${l.tenant?.full_name || ''}`, `${docHead('Rent statement', l)}
-    <p class="muted">Lease from ${esc(fmtDate(l.start_date))}${l.end_date ? ' to ' + esc(fmtDate(l.end_date)) : ''} · deposit held ${money(l.deposit)} · statement date ${esc(fmtDate(today()))}</p>
-    <table><thead><tr><th>Month</th><th class="r">Rent</th><th class="r">Paid</th><th>Paid on</th><th class="r">Balance</th></tr></thead>
-    <tbody>${lines}<tr class="total"><td colspan="4">Balance owing</td><td class="r">${money(run)}</td></tr></tbody></table>`);
+  openModal({
+    title: 'Rent statement', submitLabel: 'Print or save as PDF', cancelLabel: 'Close',
+    body: `<article class="lease-doc paper printable">
+      ${paperHead({ title: 'Rent statement', date: fmtDate(today()) })}
+      <div class="paper-parties">
+        <div><h4>Tenant</h4><b>${esc(l.tenant?.full_name || '')}</b>${l.tenant?.email ? `<span>${esc(l.tenant.email)}</span>` : ''}<span>${esc([l.unit?.label, addressOf(l)].filter(Boolean).join(', '))}</span></div>
+        <div><h4>Landlord</h4><b>${esc(profile.full_name || '')}</b>${profile.email ? `<span>${esc(profile.email)}</span>` : ''}${profile.phone ? `<span>${esc(profile.phone)}</span>` : ''}</div>
+      </div>
+      <p class="muted" style="margin:0 0 10px">Lease from ${esc(fmtDate(l.start_date))}${l.end_date ? ' to ' + esc(fmtDate(l.end_date)) : ''} · deposit held ${money(l.deposit)}</p>
+      <div class="table-wrap"><table class="t-table"><thead><tr><th>Month</th><th class="right">Rent</th><th class="right">Paid</th><th>Paid on · receipt</th><th class="right">Balance</th></tr></thead>
+      <tbody>${lines}<tr class="tax-net"><th colspan="4">Balance owing</th><td class="right num">${money(run)}</td></tr></tbody></table></div>
+    </article>`,
+    async onSubmit() { printPage(fileName('Statement', l.tenant?.full_name, today().slice(0, 7))); return false; },
+  });
 }
 
 view.addEventListener('submit', async e => {

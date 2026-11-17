@@ -1,6 +1,7 @@
 // The inspection screen, shared by the owner's Inspections page and the tenant app.
 // Either party rates each item, adds notes and photos, then confirms. The database clears
 // the other party's confirmation when something changes, and locks the record once both agree.
+import { fileName } from './paper.js';
 import { esc, openModal, toast, icon, confirmDialog } from './shell.js';
 import { KINDS, CONDITIONS, bothConfirmed } from './docs-data.js';
 import { fmtWhen, printPage } from './lease-ui.js';
@@ -150,7 +151,7 @@ export async function mountInspection(host, ctx) {
     const act = a.dataset.ia;
     try {
       if (act === 'note') { const row = a.closest('[data-item]'); row.classList.add('show-note'); row.querySelector('.insp-mynote')?.focus(); return; }
-      if (act === 'print') printPage();
+      if (act === 'print') printPage(fileName(`${KINDS[insp.kind] || ''} inspection`, ctx.names?.tenant, (insp.completed_at || insp.created_at || '').slice(0, 10)));
       if (act === 'room-good') { await api.rateRoom(insp.id, a.dataset.room, 'good'); await reload(); }
       if (act === 'del-item' && await confirmDialog('Remove this item?', 'Its notes and photos are removed too.', 'Remove')) { await api.deleteItem(a.dataset.id); await reload(); }
       if (act === 'add-item') addItem(a.dataset.room);

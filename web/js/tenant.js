@@ -9,6 +9,7 @@ import { taxYearOf, inYear, taxYearLabel } from './tax-data.js';
 import { currentRent, hasEscalation, escalationText, nextEscalation, monthLabel } from './ledger.js';
 import { mountInspection, inspectionCard } from './inspect-ui.js';
 import { ozowReturn, checkOzow, OZOW_RESULT } from './ozow-client.js';
+import { receiptHtml, paperHead, fileName } from './paper.js';
 
 const ico = {
   ...icon,
@@ -479,24 +480,19 @@ function payFlow(id) {
 function receipt(id) {
   const p = data.payments.find(x => x.id === id);
   const { tenant, unit, property, landlord, lease } = data;
+  const number = p.receipt_no || '';
   openModal({
-    title: 'Rent receipt', submitLabel: 'Done', cancel: false,
-    body: `
-      <div class="receipt">
-        <div class="receipt-top">${brand('Rent receipt')}<span class="pill pill-ok">${ico.check}Paid</span></div>
-        <div class="receipt-amount num">${money(p.amount_paid)}</div>
-        <dl class="kv">
-          <div><dt>Receipt no.</dt><dd><code class="ref">${esc(p.provider_ref || p.id.slice(0, 8).toUpperCase())}</code></dd></div>
-          <div><dt>For</dt><dd>${monthName(p.period_month)} rent</dd></div>
-          <div><dt>Paid on</dt><dd>${shortDate(new Date(p.paid_at))}${paidLate(p, lease) ? ' <span class="muted">(after the due date)</span>' : ''}</dd></div>
-          <div><dt>Method</dt><dd>${METHOD[p.method] || '—'}</dd></div>
-          <div><dt>Tenant</dt><dd>${esc(tenant.full_name)}</dd></div>
-          <div><dt>Property</dt><dd>${esc(unit.label)}, ${esc(property.street_address)}, ${esc(property.city)}</dd></div>
-          <div><dt>Landlord</dt><dd>${esc(landlord.full_name)}</dd></div>
-        </dl>
-        <p class="unit-sub" style="margin:12px 0 0">Issued through RTC Rentals, a product of Ryno-Tec Consulting (Pty) Ltd.</p>
-      </div>`,
-    async onSubmit() {},
+    title: 'Rent receipt', submitLabel: 'Print or save as PDF', cancelLabel: 'Close',
+    body: receiptHtml({
+      number, issued: shortDate(new Date(p.paid_at || Date.now())), month: monthName(p.period_month),
+      paidOn: p.paid_at ? shortDate(new Date(p.paid_at)) : '', late: paidLate(p, lease),
+      method: METHOD[p.method] || '', reference: p.provider_ref || p.reference || '',
+      due: p.amount_due, paid: p.amount_paid,
+      tenant: { name: tenant.full_name, email: tenant.email },
+      home: [unit.label, property.street_address, property.suburb, property.city].filter(Boolean).join(', '),
+      landlord: { name: landlord.full_name, email: landlord.email, phone: landlord.phone },
+    }),
+    async onSubmit() { printPage(fileName('Receipt', tenant.full_name, number || monthName(p.period_month))); return false; },
   });
 }
 
@@ -509,9 +505,9 @@ function taxStatement() {
   const doc = y => {
     const rows = paid.filter(p => inYear(p.paid_at, y)).sort((a, b) => a.paid_at.localeCompare(b.paid_at));
     const total = rows.reduce((t, p) => t + Number(p.amount_paid), 0);
-    return `<article class="lease-doc printable tax-statement">
-      <header class="lease-head"><div class="lease-brand">RTC Rentals</div><h2>Statement of rent paid</h2>
-        <p class="muted" style="margin:4px 0 0">${esc(taxYearLabel(y))}</p></header>
+    return `<article class="lease-doc paper printable tax-statement">
+      ${paperHead({ title: 'Statement of rent paid', number: `${y - 1}/${String(y).slice(2)}`, numberLabel: 'Tax year', date: shortDate(new Date()) })}
+      <h2 class="lease-title">${esc(taxYearLabel(y))}</h2>
       <dl class="kv">
         <div><dt>Tenant</dt><dd>${esc(tenant.full_name)}</dd></div>
         <div><dt>Home</dt><dd>${esc([unit.label, property.street_address, property.suburb, property.city].filter(Boolean).join(', '))}</dd></div>
@@ -520,6 +516,7 @@ function taxStatement() {
       <table class="t-table" style="margin-top:14px"><thead><tr><th>Paid on</th><th>For</th><th class="right">Amount</th></tr></thead><tbody>
         ${rows.map(p => `<tr><td>${shortDate(new Date(p.paid_at))}</td><td>${monthName(p.period_month)} rent</td><td class="right num">${money(p.amount_paid)}</td></tr>`).join('')}
         <tr class="tax-net"><th colspan="2">Total paid in the tax year</th><td class="right num">${money(total)}</td></tr></tbody></table>
+      <p class="unit-sub" style="margin:10px 0 0">Receipt numbers: ${rows.map(p => esc(p.receipt_no || '—')).join(', ')}</p>
       <p class="unit-sub" style="margin:14px 0 0">Generated ${shortDate(new Date())} from the rent records your landlord keeps in RTC Rentals (Ryno-Tec Consulting (Pty) Ltd).</p>
     </article>`;
   };
@@ -527,7 +524,7 @@ function taxStatement() {
     title: 'Tax-year statement', submitLabel: 'Print or save as PDF',
     body: `<div class="field no-print"><label for="ts-year">Tax year</label><select id="ts-year">${years.map(y => `<option value="${y}">${taxYearLabel(y)}</option>`).join('')}</select></div>
       <div id="ts-doc">${doc(years[0])}</div>`,
-    async onSubmit() { printPage(); return false; },
+    async onSubmit() { printPage(fileName('TaxStatement', tenant.full_name, `${Number(m.querySelector('#ts-year').value) - 1}-${String(m.querySelector('#ts-year').value).slice(2)}`)); return false; },
   });
   const m = document.querySelector('.modal');
   m.querySelector('#ts-year').addEventListener('change', e => { m.querySelector('#ts-doc').innerHTML = doc(Number(e.target.value)); });

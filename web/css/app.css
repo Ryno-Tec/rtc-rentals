@@ -387,15 +387,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .lease-head { border-bottom: 3px solid var(--accent-bright); padding-bottom: 14px; margin-bottom: 20px; }
 .lease-brand { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 .lease-head h2 { font-size: 22px; margin-top: 4px; }
-.lease-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 22px; }
+.lease-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17em), 1fr)); gap: 8px 28px; margin-bottom: 22px; }
 .lease-party h3, .lease-summary h3, .lease-sigs h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 4px; }
-.lease-doc .kv > div { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 5px 0; border-bottom: 1px solid #f4efea; }
+.lease-doc .kv > div { display: grid; grid-template-columns: minmax(7.5em, 32%) minmax(0, 1fr); gap: 12px; padding: 5px 0; border-bottom: 1px solid #f4efea; }
 .lease-doc .kv dt { color: var(--muted); }
-.lease-doc .kv dd { margin: 0; color: var(--ink); }
+.lease-doc .kv dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
 .lease-summary { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; }
-.lease-section { margin-bottom: 18px; break-inside: avoid-page; }
+.lease-section { margin-bottom: 18px; }
+.lease-section h3 { break-after: avoid; }
+.lease-section p { break-inside: avoid; }
 .lease-section h3 { font-size: 15px; margin-bottom: 6px; }
-.lease-section p { margin: 0 0 6px; display: grid; grid-template-columns: 42px 1fr; }
+.lease-section p { margin: 0 0 6px; display: grid; grid-template-columns: 3.1em minmax(0, 1fr); column-gap: .35em; }
 .clause-no { color: var(--muted); font-variant-numeric: tabular-nums; }
 .lease-sigs { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); break-inside: avoid; }
 .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
@@ -462,9 +464,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 
 @media (max-width: 760px) {
   .lease-doc { padding: 20px 16px; }
-  .lease-parties, .sig-grid { grid-template-columns: 1fr; }
-  .lease-doc .kv > div { grid-template-columns: 1fr; gap: 0; }
-  .lease-section p { grid-template-columns: 34px 1fr; }
+  .sig-grid { grid-template-columns: 1fr; }
   .insp-item { padding: 12px 14px; }
   .seg { width: 100%; }
   .seg button { flex: 1; padding: 9px 4px; min-height: 40px; }
@@ -647,3 +647,65 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
 .statement-sum { max-width: 460px; margin-left: auto; margin-top: 14px; }
 .statement-sum dd { text-align: right; }
 @media print { .no-print, .admin-tabs, .admin-bar { display: none !important; } .statement { border: 0; box-shadow: none; } }
+
+/* ---------- Documents: letterhead, receipts (paper.js) ---------- */
+.paper { container-type: inline-size; }
+.paper-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px 24px; flex-wrap: wrap;
+  border-bottom: 3px solid var(--accent-bright); padding-bottom: 14px; margin-bottom: 20px; }
+.paper-brand { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.paper-logo { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+.paper-brand b { display: block; font-size: 16px; color: var(--ink); letter-spacing: -.01em; }
+.paper-brand span { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.paper-id { text-align: right; font-size: 12.5px; color: var(--text); display: grid; gap: 2px; justify-items: end; }
+.paper-id span { color: var(--muted); }
+.paper-id code { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+.paper-title { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.paper-status { margin-top: 4px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bg); color: var(--muted); }
+.paper-status.signed { background: var(--green-soft); color: var(--green); }
+.paper-status.sent { background: var(--amber-soft); color: var(--amber); }
+.lease-title { font-size: 22px; margin: 0 0 18px; letter-spacing: -.01em; }
+@container (max-width: 34em) {
+  .paper-id { text-align: left; justify-items: start; }
+  .lease-doc .kv > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .lease-doc .kv dt { font-size: .88em; }
+  .lease-title { font-size: 19px; }
+}
+
+.receipt-paper { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 18px; max-width: 620px; margin: 0 auto; }
+.receipt-hero { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 4px 0 18px; }
+.receipt-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.receipt-total { font-size: 36px; font-weight: 750; color: var(--ink); letter-spacing: -.02em; line-height: 1.15; margin: 2px 0 4px; }
+.receipt-for { color: var(--text); }
+.receipt-late { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--amber); background: var(--amber-soft); padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
+.receipt-stamp { flex-shrink: 0; border: 2.5px solid var(--green); color: var(--green); font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  font-size: 15px; padding: 6px 14px; border-radius: 8px; transform: rotate(-6deg); opacity: .9; }
+.receipt-stamp.part { border-color: var(--amber); color: var(--amber); }
+.paper-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13em), 1fr)); gap: 12px; margin-bottom: 18px; }
+.paper-parties > div { background: var(--bg); border-radius: 10px; padding: 12px 14px; display: grid; gap: 1px; min-width: 0; align-content: start; }
+.paper .t-table code { white-space: nowrap; font-size: 11px; }
+.paper-parties h4 { margin: 0 0 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.paper-parties b { color: var(--ink); font-size: 15px; }
+.paper-parties span { font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.paper-lines { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+.paper-lines th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 0 0 8px; border-bottom: 1px solid var(--border); }
+.paper-lines td { padding: 10px 0; border-bottom: 1px solid #f4efea; }
+.paper-lines .right { text-align: right; }
+.paper-lines .paper-sub td { color: var(--muted); }
+.paper-lines .paper-total td { font-weight: 700; color: var(--ink); border-bottom: 0; border-top: 2px solid var(--ink); }
+.paper-meta { margin: 0 0 14px; display: grid; gap: 6px; }
+.paper-meta > div { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.paper-meta dt { color: var(--muted); }
+.paper-meta dd { margin: 0; color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.paper-meta code { font-family: var(--mono); font-size: 12px; }
+.paper-foot { border-top: 1px dashed var(--border); padding-top: 12px; font-size: 12px; color: var(--muted); }
+.modal .receipt-paper { border: 0; padding: 0; }
+
+@media print {
+  body.print-doc > *:not(:has(.printable)) { display: none !important; }
+  body.print-doc { background: #fff !important; }
+  body.print-doc .modal-backdrop { position: static !important; background: none !important; }
+  body.print-doc .modal { box-shadow: none !important; max-height: none !important; overflow: visible !important; }
+  .paper-logo, .receipt-stamp, .paper-parties > div, .paper-status, .paper-id code, .receipt-late { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .paper-parties, .lease-summary, .paper-head { break-inside: avoid; }
+  @page { margin: 14mm 12mm; }
+}
