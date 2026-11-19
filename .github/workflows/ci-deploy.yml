@@ -66,6 +66,7 @@ jobs:
       RTC_OZOW_API_KEY: ${{ secrets.RTC_OZOW_API_KEY }}
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      KHAPHELA_KEY: ${{ secrets.KHAPHELA_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Ozow functions
@@ -78,7 +79,7 @@ jobs:
           npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
           npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
           npx -y supabase@latest functions deploy ozow-check --yes --project-ref "$REF" --use-api
-          for f in ozow-reconcile autopay-setup autopay-check autopay-run rent-reminders; do
+          for f in ozow-reconcile autopay-setup autopay-check autopay-run rent-reminders ops-health; do
             npx -y supabase@latest functions deploy "$f" --yes --project-ref "$REF" --use-api
           done
           # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
@@ -92,6 +93,7 @@ jobs:
             SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY" "RTC_OZOW_API_KEY=$RTC_OZOW_API_KEY" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
           fi
           [ -n "$BREVO_API_KEY" ] && SET+=("BREVO_API_KEY=$BREVO_API_KEY")
+          [ -n "$KHAPHELA_KEY" ] && SET+=("KHAPHELA_KEY=$KHAPHELA_KEY")
           if [ ${#SET[@]} -gt 0 ]; then
             npx -y supabase@latest secrets set --yes --project-ref "$REF" "${SET[@]}"
           else

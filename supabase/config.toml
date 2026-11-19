@@ -23,3 +23,6 @@ verify_jwt = true
 verify_jwt = true
 [functions.rent-reminders]
 verify_jwt = true
+[functions.ops-health]
+# Khaphela monitoring: anon key plus the x-khaphela-key header; totals only.
+verify_jwt = true
