@@ -176,8 +176,10 @@ jobs:
       - name: Server functions
         run: bash scripts/devops/deploy-functions.sh
 
+  # always(): a skipped staging job would otherwise skip everything after it.
   web:
     needs: backend
+    if: always() && needs.backend.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -209,6 +211,7 @@ jobs:
 
   smoke:
     needs: web
+    if: always() && needs.web.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -221,6 +224,7 @@ jobs:
 
   mark-good:
     needs: smoke
+    if: always() && needs.smoke.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -231,7 +235,7 @@ jobs:
 
   rollback:
     needs: [web, smoke]
-    if: failure() && needs.web.result == 'success'
+    if: always() && needs.web.result == 'success' && needs.smoke.result == 'failure'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
