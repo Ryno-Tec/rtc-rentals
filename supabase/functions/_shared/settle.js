@@ -37,7 +37,7 @@ async function outcomeFor(admin, op) {
   const c = await credentialsFor(admin, op.kind, op.landlord_id);
   if (!c) { await logEvent(admin, 'credentials', op, { note: 'Ozow connection missing; cannot check this payment' }); return { c: null, out: null }; }
   if (c.method === 'classic')
-    return { c, out: await classicOutcome({ apiKey: c.apiKey, siteCode: c.siteCode, reference: op.reference, isTest: c.isTest }) };
+    return { c, out: await classicOutcome({ apiKey: c.apiKey, siteCode: c.siteCode, reference: op.reference, isTest: c.isTest, transactionId: op.ozow_transaction_id ?? null }) };
   const base = ozowBase(c.isTest);
   const token = await getToken({ base, clientId: c.clientId, clientSecret: c.clientSecret });
   return { c, out: await paymentOutcome({ base, token, paymentId: op.ozow_payment_id, since: op.created_at }) };
@@ -78,6 +78,8 @@ export async function verifyComplete(admin, op) {
   const { c, out } = await outcomeFor(admin, op);
   if (!c) return false;
   const fine = out?.status === 'Complete' && !mismatches(out, op, c.siteCode).length;
-  if (!fine) await logEvent(admin, 'reconcile_mismatch', op, { ozow: out?.raw ?? null, note: 'Recorded as paid here, but Ozow’s record differs' });
+  if (!fine) await logEvent(admin, 'reconcile_mismatch', op, out
+    ? { ozow: out.raw ?? null, problems: out.status === 'Complete' ? mismatches(out, op, c.siteCode) : [`Ozow status: ${out.status ?? 'unknown'}`], note: 'Recorded as paid here, but Ozow’s record differs' }
+    : { ozow: null, note: 'Recorded as paid here, but Ozow returned no record for this reference or transaction ID' });
   return fine;
 }

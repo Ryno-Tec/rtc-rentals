@@ -205,13 +205,21 @@ export async function classicCreate({ apiKey, fields, fetchImpl = fetch }) {
 }
 
 // The outcome Ozow holds for our reference: a Complete transaction wins, otherwise the latest attempt.
-export async function classicOutcome({ apiKey, siteCode, reference, isTest, fetchImpl = fetch }) {
-  const q = new URLSearchParams({ siteCode, transactionReference: reference, IsTest: isTest ? 'true' : 'false' });
-  const res = await fetchImpl(`${CLASSIC_API}/GetTransactionByReference?${q}`, { headers: { ApiKey: apiKey, Accept: 'application/json' } });
-  if (res.status === 404) return null;
+// Ozow's by-reference lookup can come back empty for an older, settled payment, so when we already hold
+// Ozow's transaction ID we fall back to GetTransaction before concluding Ozow has no record.
+async function classicGet(fetchImpl, apiKey, path, params) {
+  const res = await fetchImpl(`${CLASSIC_API}/${path}?${new URLSearchParams(params)}`, { headers: { ApiKey: apiKey, Accept: 'application/json' } });
+  if (res.status === 404) return [];
   if (!res.ok) throw new OzowError(`Ozow status check failed (${res.status}).`, res.status);
   const raw = await res.json().catch(() => []);
-  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return (Array.isArray(raw) ? raw : raw ? [raw] : []).filter(t => t && typeof t === 'object' && Object.keys(t).length);
+}
+
+export async function classicOutcome({ apiKey, siteCode, reference, isTest, transactionId = null, fetchImpl = fetch }) {
+  const IsTest = isTest ? 'true' : 'false';
+  let list = await classicGet(fetchImpl, apiKey, 'GetTransactionByReference', { siteCode, transactionReference: reference, IsTest });
+  if (!list.length && transactionId)
+    list = await classicGet(fetchImpl, apiKey, 'GetTransaction', { siteCode, transactionId, IsTest });
   if (!list.length) return null;
   const st = t => String(pick(t, 'Status') || '');
   const ok = list.find(t => st(t).toLowerCase() === 'complete');

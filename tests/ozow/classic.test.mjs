@@ -66,3 +66,18 @@ assert.ok(!(await verifyResponse({ ...resp, Amount: '1.00' }, KEY)));
 assert.ok(!(await verifyResponse(resp, 'otherkey')));
 assert.ok(!(await verifyResponse({ ...resp, Hash: '' }, KEY)));
 console.log('Ozow classic tests passed');
+
+// Empty by-reference lookup falls back to GetTransaction with the stored Ozow transaction ID
+{
+  const g = fake(url => url.includes('GetTransactionByReference') ? { body: [] }
+    : { body: { TransactionId: 'tx-9', SiteCode: 'TSTSTE0001', TransactionReference: 'RTCABC', CurrencyCode: 'ZAR', Amount: '60.00', Status: 'Complete' } });
+  const o = await classicOutcome({ apiKey: 'k', siteCode: 'TSTSTE0001', reference: 'RTCABC', isTest: false, transactionId: 'tx-9', fetchImpl: g });
+  assert.equal(o.status, 'Complete'); assert.equal(o.amount, 60);
+  assert.match(g.calls[1].url, /\/GetTransaction\?siteCode=TSTSTE0001&transactionId=tx-9&IsTest=false$/);
+  const n = fake(() => ({ body: [] }));
+  assert.equal(await classicOutcome({ apiKey: 'k', siteCode: 'S', reference: 'R', isTest: false, fetchImpl: n }), null);
+  assert.equal(n.calls.length, 1, 'no fallback without a transaction ID');
+  const four = fake(url => url.includes('ByReference') ? { status: 404, body: {} } : { body: [{}] });
+  assert.equal(await classicOutcome({ apiKey: 'k', siteCode: 'S', reference: 'R', isTest: false, transactionId: 't', fetchImpl: four }), null);
+}
+console.log('classic fallback ok');
