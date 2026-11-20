@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Smoke tests
         env:
           SUPABASE_URL: ${{ inputs.environment == 'staging' && vars.STAGING_SUPABASE_URL || vars.SUPABASE_URL }}
