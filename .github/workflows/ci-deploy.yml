@@ -1,5 +1,12 @@
 name: Test and deploy
 
+# Every push to main: tests → staging (database, functions, site) → staging smoke tests →
+# production (backup if the database changes, database, functions, site) → production smoke tests.
+# Production only starts when staging passed. If production's smoke tests fail, the site is put
+# back to the last version that passed (database changes are fixed forward, never undone).
+# Staging runs once the STAGING_ENABLED repository variable is 'true' (see docs/DEVOPS.md);
+# until then production deploys straight after the tests, as before.
+
 on:
   push:
     branches: [main]
@@ -8,6 +15,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -25,8 +36,11 @@ jobs:
           postgres --version
           bash tests/db/run.sh
 
-      - name: Ozow signing tests
+      - name: Ozow signing and web unit tests
         run: for t in tests/ozow/*.test.mjs tests/web/*.test.mjs; do node "$t"; done
+
+      - name: Deploy script checks
+        run: bash -n scripts/devops/*.sh
 
       - uses: actions/setup-python@v5
         with:
@@ -51,14 +65,74 @@ jobs:
           name: screenshots
           path: tests/ui/screenshots/
 
-  functions:
-    # Deploys the Ozow server functions to Supabase. Skipped until the SUPABASE_ACCESS_TOKEN secret exists.
+  # ------------------------------------------------------------------ staging
+  staging:
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.STAGING_ENABLED == 'true'
     runs-on: ubuntu-24.04
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_SITE_URL }}
+    concurrency:
+      group: staging
+      cancel-in-progress: false
+    env:
+      # Staging settings use their own names so a missing value can never fall back to production's.
+      SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.STAGING_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SITE_URL: ${{ vars.STAGING_SITE_URL }}
+      KHAPHELA_KEY: ${{ secrets.STAGING_KHAPHELA_KEY }}
+      PROD_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make sure this is the staging project
+        run: |
+          source scripts/devops/lib.sh
+          [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ] && [ -n "$SUPABASE_DB_URL" ] && [ -n "$SITE_URL" ] \
+            || fail "Staging is enabled but STAGING_SUPABASE_URL, STAGING_SUPABASE_ANON_KEY, STAGING_SITE_URL or STAGING_DB_URL is missing."
+          [ "$(project_ref "$SUPABASE_URL")" != "$(project_ref "$PROD_SUPABASE_URL")" ] || fail "Staging points at the production Supabase project."
+          case "$SUPABASE_DB_URL" in *"$(project_ref "$PROD_SUPABASE_URL")"*) fail "STAGING_DB_URL points at the production database.";; esac
+
+      - name: Database migrations
+        run: bash scripts/devops/migrate.sh
+
+      - name: Server functions
+        run: bash scripts/devops/deploy-functions.sh
+
+      - name: Site settings
+        run: bash scripts/devops/write-config.sh staging
+
+      - name: Publish staging site
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.STAGING_SWA_TOKEN }}
+          action: upload
+          app_location: web
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke tests (staging)
+        run: bash scripts/devops/smoke.sh "$SITE_URL"
+
+  # --------------------------------------------------------------- production
+  backend:
+    needs: [test, staging]
+    if: >-
+      always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      && needs.test.result == 'success' && (needs.staging.result == 'success' || needs.staging.result == 'skipped')
+    runs-on: ubuntu-24.04
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SITE_URL: https://rentals.ryno-tec.co.za
       RTC_OZOW_SITE_CODE: ${{ secrets.RTC_OZOW_SITE_CODE }}
       RTC_OZOW_CLIENT_ID: ${{ secrets.RTC_OZOW_CLIENT_ID }}
       RTC_OZOW_CLIENT_SECRET: ${{ secrets.RTC_OZOW_CLIENT_SECRET }}
@@ -67,42 +141,42 @@ jobs:
       RTC_OZOW_IS_TEST: ${{ vars.RTC_OZOW_IS_TEST }}
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       KHAPHELA_KEY: ${{ secrets.KHAPHELA_KEY }}
+      AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy Ozow functions
-        run: |
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::notice::SUPABASE_ACCESS_TOKEN secret not set; server functions not deployed."; exit 0
-          fi
-          REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
-          echo "Project: $REF"
-          npx -y supabase@latest functions deploy ozow-pay --yes --project-ref "$REF" --use-api
-          npx -y supabase@latest functions deploy ozow-notify --yes --project-ref "$REF" --no-verify-jwt --use-api
-          npx -y supabase@latest functions deploy ozow-check --yes --project-ref "$REF" --use-api
-          for f in ozow-reconcile autopay-setup autopay-check autopay-run rent-reminders ops-health; do
-            npx -y supabase@latest functions deploy "$f" --yes --project-ref "$REF" --use-api
-          done
-          # Ryno-Tec's own Ozow account (for owners paying invoices). The return address defaults to
-          # rentals.ryno-tec.co.za; RTC_OZOW_IS_TEST=true only for Ozow staging credentials.
-          # Server-only settings, copied to Supabase when present (the token needs Edge Functions secrets write).
-          SET=()
-          if [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_CLIENT_ID" ] && [ -n "$RTC_OZOW_CLIENT_SECRET" ]; then
-            SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_CLIENT_ID=$RTC_OZOW_CLIENT_ID" "RTC_OZOW_CLIENT_SECRET=$RTC_OZOW_CLIENT_SECRET" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
-          elif [ -n "$RTC_OZOW_SITE_CODE" ] && [ -n "$RTC_OZOW_PRIVATE_KEY" ] && [ -n "$RTC_OZOW_API_KEY" ]; then
-            # Ozow accounts issued a Private Key + API Key (original API).
-            SET+=("RTC_OZOW_SITE_CODE=$RTC_OZOW_SITE_CODE" "RTC_OZOW_PRIVATE_KEY=$RTC_OZOW_PRIVATE_KEY" "RTC_OZOW_API_KEY=$RTC_OZOW_API_KEY" "RTC_OZOW_IS_TEST=${RTC_OZOW_IS_TEST:-false}")
-          fi
-          [ -n "$BREVO_API_KEY" ] && SET+=("BREVO_API_KEY=$BREVO_API_KEY")
-          [ -n "$KHAPHELA_KEY" ] && SET+=("KHAPHELA_KEY=$KHAPHELA_KEY")
-          if [ ${#SET[@]} -gt 0 ]; then
-            npx -y supabase@latest secrets set --yes --project-ref "$REF" "${SET[@]}"
-          else
-            echo "::notice::No server secrets to set (Ryno-Tec Ozow keys, BREVO_API_KEY)."
-          fi
 
-  deploy:
-    needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      - name: Pending database changes
+        id: pending
+        run: |
+          DRY_RUN=true bash scripts/devops/migrate.sh
+          echo "count=$(wc -l < /tmp/pending-migrations | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Backup before changing the database
+        if: steps.pending.outputs.count != '0'
+        run: |
+          source scripts/devops/lib.sh
+          [ -n "$AGE_RECIPIENT" ] || fail "BACKUP_AGE_RECIPIENT is not set; refusing to change the production database without a backup."
+          install_pg17; install_age
+          mkdir -p /tmp/pre && pg_dump "$SUPABASE_DB_URL" -Fc --no-owner --no-acl -f /tmp/pre/db.dump
+          pg_restore --list /tmp/pre/db.dump > /dev/null
+          age -r "$AGE_RECIPIENT" -o "/tmp/pre/rtc-rentals-pre-migration-${GITHUB_SHA::7}.dump.age" /tmp/pre/db.dump && rm /tmp/pre/db.dump
+
+      - name: Keep the pre-change backup (encrypted)
+        if: steps.pending.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-migration-backup-${{ github.sha }}
+          path: /tmp/pre/*.age
+          retention-days: 30
+
+      - name: Database migrations
+        run: bash scripts/devops/migrate.sh
+
+      - name: Server functions
+        run: bash scripts/devops/deploy-functions.sh
+
+  web:
+    needs: backend
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -116,43 +190,83 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-
       - name: Android app link (Google Play / AppGallery)
         env:
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
-        run: |
-          # Proves to Android that the store app and this website belong together, so the app
-          # opens full-screen without a browser bar. Set the repo variable once the signing key exists.
-          if [ -n "$ANDROID_CERT_SHA256" ]; then
-            mkdir -p web/.well-known
-            FPS=$(echo "$ANDROID_CERT_SHA256" | tr ',' '\n' | sed -E 's/^ *//; s/ *$//' | sed -E 's/.*/"&"/' | paste -sd, -)
-            printf '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"za.co.rynotec.rentals","sha256_cert_fingerprints":[%s]}}]\n' "$FPS" > web/.well-known/assetlinks.json
-            cat web/.well-known/assetlinks.json
-          fi
-
-      - name: Write public Supabase settings
+        run: bash scripts/devops/assetlinks.sh
+      - name: Site settings
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-        run: |
-          # Accept the URL with or without the /rest/v1/ path the dashboard sometimes shows.
-          SUPABASE_URL="$(echo "$SUPABASE_URL" | tr -d '[:space:]' | sed -E 's#/rest/v1/?$##; s#/+$##')"
-          SUPABASE_ANON_KEY="$(echo "$SUPABASE_ANON_KEY" | tr -d '[:space:]')"
-          echo "Supabase project: $SUPABASE_URL"
-          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
-            cat > web/js/config.js <<EOF
-          export const config = {
-            supabaseUrl: '${SUPABASE_URL}',
-            supabaseAnonKey: '${SUPABASE_ANON_KEY}',
-          };
-          EOF
-          else
-            echo "::notice::SUPABASE_URL / SUPABASE_ANON_KEY variables not set; deploying in demo mode."
-          fi
-
+        run: bash scripts/devops/write-config.sh production
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  smoke:
+    needs: web
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke tests (production)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          KHAPHELA_KEY: ${{ secrets.KHAPHELA_KEY }}
+        run: bash scripts/devops/smoke.sh https://rentals.ryno-tec.co.za
+
+  mark-good:
+    needs: smoke
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remember this version as the last good production release
+        run: git tag -f prod-good && git push -f origin prod-good
+
+  rollback:
+    needs: [web, smoke]
+    if: failure() && needs.web.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Go back to the last good release
+        run: |
+          if git rev-parse -q --verify refs/tags/prod-good >/dev/null; then
+            echo "::warning::Production smoke tests failed; putting the site back to $(git rev-parse --short prod-good)."
+            git checkout -q prod-good
+          else
+            echo "::error::Production smoke tests failed and there is no earlier good release to go back to."; exit 1
+          fi
+      - name: Android app link
+        env:
+          ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: '[ -f scripts/devops/assetlinks.sh ] && bash scripts/devops/assetlinks.sh || true'
+      - name: Site settings
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -f scripts/devops/write-config.sh ]; then bash scripts/devops/write-config.sh production
+          else printf "export const config = {\n  supabaseUrl: '%s',\n  supabaseAnonKey: '%s',\n};\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > web/js/config.js; fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Report
+        run: echo "::error::Production was rolled back. Fix forward on main; the failed smoke test log is in the smoke job."; exit 1

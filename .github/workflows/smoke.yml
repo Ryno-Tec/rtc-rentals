@@ -2,6 +2,8 @@ name: Smoke test
 
 # Checks a live environment from the outside, on demand. The deploy pipeline runs the same checks.
 on:
+  push:
+    branches: [devops-smoke]
   workflow_dispatch:
     inputs:
       environment:
@@ -15,7 +17,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'production' }}
     steps:
       - uses: actions/checkout@v4
       - name: Smoke tests
