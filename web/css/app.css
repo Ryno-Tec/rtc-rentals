@@ -709,3 +709,8 @@ html.locked body > :not(#app-lock):not(.toasts) { visibility: hidden; }
   .paper-parties, .lease-summary, .paper-head { break-inside: avoid; }
   @page { margin: 14mm 12mm; }
 }
+
+/* Non-production builds (config.env) show a fixed ribbon so staging is never mistaken for the live app. */
+html[data-env] body::after { content: "STAGING – test data only"; position: fixed; z-index: 9998; left: 50%; bottom: 0; transform: translateX(-50%);
+  background: #b45309; color: #fff; font: 600 12px/1.6 system-ui, sans-serif; padding: 2px 12px; border-radius: 6px 6px 0 0; pointer-events: none; letter-spacing: .3px; }
+@media print { html[data-env] body::after { display: none; } }

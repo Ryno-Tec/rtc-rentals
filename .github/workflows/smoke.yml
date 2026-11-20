@@ -1,0 +1,27 @@
+name: Smoke test
+
+# Checks a live environment from the outside, on demand. The deploy pipeline runs the same checks.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [production, staging]
+        default: production
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke tests
+        env:
+          SUPABASE_URL: ${{ inputs.environment == 'staging' && vars.STAGING_SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ inputs.environment == 'staging' && vars.STAGING_SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY }}
+          KHAPHELA_KEY: ${{ inputs.environment == 'staging' && secrets.STAGING_KHAPHELA_KEY || secrets.KHAPHELA_KEY }}
+          SITE: ${{ inputs.environment == 'staging' && vars.STAGING_SITE_URL || 'https://rentals.ryno-tec.co.za' }}
+        run: bash scripts/devops/smoke.sh "$SITE"
