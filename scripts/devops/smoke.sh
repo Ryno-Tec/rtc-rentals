@@ -19,7 +19,7 @@ check "site and config ($SITE)" site_ok
 for p in tenant.html billing.html leases.html sw.js manifest.webmanifest; do check "page $p" test "$(code "$SITE/$p")" = 200; done
 
 if [ -n "$URL" ] && [ -n "$KEY" ]; then
-  check "database API" test "$(code "$URL/rest/v1/" -H "apikey: $KEY")" = 200
+  check "database API (row-level security on)" bash -c '[ "$0" = 200 ] && [ "$(jq length /tmp/smoke.body)" = 0 ]' "$(code "$URL/rest/v1/properties?select=id&limit=1" -H "apikey: $KEY" -H "Authorization: Bearer $KEY")"
   check "auth service" test "$(code "$URL/auth/v1/health" -H "apikey: $KEY")" = 200
   # Signed-out calls must be refused: proves the function is deployed and still checks sign-in.
   check "ozow-pay refuses anonymous" bash -c '[[ "$0" =~ ^(400|401|403)$ ]]' "$(code -X POST "$URL/functions/v1/ozow-pay" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -d '{}')"
