@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Database schema tests (Postgres)
         run: |
@@ -43,7 +43,7 @@ jobs:
       - name: Deploy script checks
         run: bash -n scripts/devops/*.sh
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -61,7 +61,7 @@ jobs:
 
       - name: Keep screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: tests/ui/screenshots/
@@ -87,7 +87,7 @@ jobs:
       KHAPHELA_KEY: ${{ secrets.STAGING_KHAPHELA_KEY }}
       PROD_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Make sure this is the staging project
         run: |
@@ -144,7 +144,7 @@ jobs:
       KHAPHELA_KEY: ${{ secrets.KHAPHELA_KEY }}
       AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Pending database changes
         id: pending
@@ -164,7 +164,7 @@ jobs:
 
       - name: Keep the pre-change backup (encrypted)
         if: steps.pending.outputs.count != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pre-migration-backup-${{ github.sha }}
           path: /tmp/pre/*.age
@@ -192,7 +192,7 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Android app link (Google Play / AppGallery)
         env:
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
@@ -202,19 +202,19 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: bash scripts/devops/write-config.sh production
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: web
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   smoke:
     needs: web
     if: always() && needs.web.result == 'success'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Smoke tests (production)
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -229,7 +229,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Remember this version as the last good production release
         run: git tag -f prod-good && git push -f origin prod-good
 
@@ -245,7 +245,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Go back to the last good release
@@ -267,11 +267,11 @@ jobs:
         run: |
           if [ -f scripts/devops/write-config.sh ]; then bash scripts/devops/write-config.sh production
           else printf "export const config = {\n  supabaseUrl: '%s',\n  supabaseAnonKey: '%s',\n};\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > web/js/config.js; fi
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: web
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
       - name: Report
         run: echo "::error::Production was rolled back. Fix forward on main; the failed smoke test log is in the smoke job."; exit 1

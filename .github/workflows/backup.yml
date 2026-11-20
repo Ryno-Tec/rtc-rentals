@@ -38,7 +38,7 @@ jobs:
     environment: backup
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Back up and test-restore
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -51,7 +51,7 @@ jobs:
         id: az
         if: vars.AZURE_CLIENT_ID != ''
         continue-on-error: true
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -67,7 +67,7 @@ jobs:
     environment: backup
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Bundle every repository
         env:
           BACKUP_REPOS: ${{ vars.BACKUP_REPOS }}
@@ -78,7 +78,7 @@ jobs:
         id: az
         if: vars.AZURE_CLIENT_ID != ''
         continue-on-error: true
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
