@@ -1,0 +1,91 @@
+name: Backups
+
+# Nightly 01:23 SA time: RTC Rentals database and storage files. Sundays 03:23: every GitHub repo.
+# Each backup is test-restored (database), encrypted with age, then sent to Azure Blob, the private
+# rtc-backups repo and SharePoint. Retention: Azure and SharePoint 90 days, GitHub 30 days.
+# Anything not yet configured is skipped and listed in the run summary. See docs/DEVOPS.md.
+on:
+  schedule:
+    - cron: '23 23 * * *'
+    - cron: '23 1 * * 0'
+  workflow_dispatch:
+    inputs:
+      what:
+        type: choice
+        options: [database, repos, both]
+        default: database
+
+permissions:
+  contents: read
+  id-token: write   # GitHub OIDC → Azure (no stored Azure secret)
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+env:
+  BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+  BACKUP_STORAGE_ACCOUNT: ${{ vars.BACKUP_STORAGE_ACCOUNT }}
+  BACKUP_SP_SITE_ID: ${{ vars.BACKUP_SP_SITE_ID }}
+  BACKUP_SP_DRIVE_ID: ${{ vars.BACKUP_SP_DRIVE_ID }}
+  BACKUP_REPO: ${{ vars.BACKUP_REPO }}
+  BACKUP_REPO_KEY: ${{ secrets.BACKUP_REPO_KEY }}
+
+jobs:
+  database:
+    if: github.event.schedule == '23 23 * * *' || inputs.what == 'database' || inputs.what == 'both'
+    runs-on: ubuntu-24.04
+    environment: backup
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Back up and test-restore
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_S3_KEY_ID: ${{ secrets.SUPABASE_S3_KEY_ID }}
+          SUPABASE_S3_SECRET: ${{ secrets.SUPABASE_S3_SECRET }}
+          SUPABASE_S3_REGION: ${{ vars.SUPABASE_S3_REGION }}
+        run: bash scripts/devops/backup.sh
+      - name: Sign in to Azure (OIDC)
+        id: az
+        if: vars.AZURE_CLIENT_ID != ''
+        continue-on-error: true
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Send to Azure Blob, GitHub and SharePoint
+        env:
+          AZ_LOGIN: ${{ steps.az.outcome }}
+        run: bash scripts/devops/ship.sh rtc-rentals
+
+  repos:
+    if: github.event.schedule == '23 1 * * 0' || inputs.what == 'repos' || inputs.what == 'both'
+    runs-on: ubuntu-24.04
+    environment: backup
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bundle every repository
+        env:
+          BACKUP_REPOS: ${{ vars.BACKUP_REPOS }}
+          GH_TOKEN_RYNO_TEC: ${{ secrets.BACKUP_GITHUB_TOKEN }}
+          GH_TOKEN_KG: ${{ secrets.BACKUP_GITHUB_TOKEN_KG }}
+        run: bash scripts/devops/backup-repos.sh
+      - name: Sign in to Azure (OIDC)
+        id: az
+        if: vars.AZURE_CLIENT_ID != ''
+        continue-on-error: true
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Send to Azure Blob, GitHub and SharePoint
+        env:
+          AZ_LOGIN: ${{ steps.az.outcome }}
+          RETAIN_DAYS: '180'
+          RETAIN_DAYS_GITHUB: '56'
+        run: bash scripts/devops/ship.sh github-repos
