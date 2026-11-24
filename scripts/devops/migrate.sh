@@ -23,5 +23,6 @@ done
 if [ ! -s "$PENDING_FILE" ]; then echo "Database is up to date."; exit 0; fi
 echo "Pending migrations: $(paste -sd' ' "$PENDING_FILE")"
 [ "$DRY" = true ] && exit 0
-supabase db push --db-url "$SUPABASE_DB_URL" --yes
+# --include-all: a migration older than the newest applied one (e.g. 017 skipped by hand) still runs.
+supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
 echo "Applied: $(paste -sd' ' "$PENDING_FILE")"
