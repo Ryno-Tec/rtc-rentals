@@ -132,7 +132,7 @@ Finally set the repository variable `STAGING_ENABLED=true`. The next push deploy
    - one for the **Ryno-Tec** org, all repos → secret `BACKUP_GITHUB_TOKEN`
    - one for your **Kagiso933** repos → secret `BACKUP_GITHUB_TOKEN_KG`
 2. Set the variable `BACKUP_REPOS` to:
-   `Ryno-Tec/rtc-rentals Ryno-Tec/ryno-tec-hub Ryno-Tec/Ryno-Tec-Consulting Ryno-Tec/khaphela Ryno-Tec/spaceman-dash Ryno-Tec/rtc-platform Kagiso933/etender-pro Kagiso933/csms-platform Kagiso933/Patel`
+   `Ryno-Tec/rtc-rentals Ryno-Tec/ryno-tec-hub Ryno-Tec/Ryno-Tec-Consulting Ryno-Tec/khaphela Ryno-Tec/spaceman-dash Ryno-Tec/rtc-platform Ryno-Tec/etender-pro Ryno-Tec/csms-platform Kagiso933/Patel`
 
 **G. Test.**
 
